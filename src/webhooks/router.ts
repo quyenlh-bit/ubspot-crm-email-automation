@@ -1,66 +1,110 @@
 import { Router, type Request, type Response } from "express";
-import { verifyHubSpotSignatureV3 } from "./verify.js";
-import { runOnboardingWorkflow } from "../services/automation.service.js";
+import { connectionRepository } from "../core/channels/connection.repository.js";
+import { contactRepository } from "../core/contacts/contact.repository.js";
+import { createChannel } from "../channels/registry.js";
+import * as syncLog from "../core/sync/sync-log.repository.js";
+import type { ChannelEvent } from "../channels/channel.js";
+import type { ChannelConnection } from "../core/domain.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
 export const webhookRouter = Router();
 
 /**
- * HubSpot webhook receiver.
+ * Provider webhook receiver.
  *
- * Mount with a RAW body parser so the signature can be verified against the
- * exact bytes HubSpot sent (see index.ts).
+ * The URL carries the connection id so we know *which tenant's* connection sent
+ * the request before we can verify it — signature verification needs that
+ * connection's secret. Give each provider connection a unique webhook URL:
+ *   {PUBLIC_BASE_URL}/webhooks/{provider}/{connectionId}
+ *
+ * Mount with a RAW body parser so signatures verify against the exact bytes the
+ * provider sent (see index.ts).
  */
-webhookRouter.post("/hubspot", async (req: Request, res: Response) => {
-  const rawBody = (req.body as Buffer)?.toString("utf8") ?? "";
-  const fullUrl = `${env.PUBLIC_BASE_URL}${req.originalUrl}`;
+webhookRouter.post("/:provider/:connectionId", async (req: Request, res: Response) => {
+  const provider = String(req.params.provider);
+  const connectionId = String(req.params.connectionId);
 
-  const valid = verifyHubSpotSignatureV3({
+  let connection: ChannelConnection | null;
+  try {
+    connection = await connectionRepository.findById(connectionId);
+  } catch (err) {
+    logger.error("Failed to load connection for webhook", { connectionId, err: String(err) });
+    return res.status(500).json({ error: "internal error" });
+  }
+
+  if (!connection || !connection.enabled || connection.provider !== provider) {
+    return res.status(404).json({ error: "unknown connection" });
+  }
+
+  const channel = createChannel(connection);
+  const rawBody = (req.body as Buffer)?.toString("utf8") ?? "";
+
+  const verified = channel.verifyWebhook?.({
     method: "POST",
-    url: fullUrl,
+    url: `${env.PUBLIC_BASE_URL}${req.originalUrl}`,
     rawBody,
-    signature: req.header("X-HubSpot-Signature-V3") ?? undefined,
-    timestamp: req.header("X-HubSpot-Request-Timestamp") ?? undefined,
+    headers: req.headers as Record<string, string | undefined>,
   });
 
-  if (!valid) {
-    logger.warn("Rejected webhook with invalid signature");
+  if (!verified) {
+    logger.warn("Rejected webhook with invalid signature", { provider, connectionId });
     return res.status(401).json({ error: "invalid signature" });
   }
 
-  // Respond fast (HubSpot expects 2xx within ~5s); process async.
+  // Respond fast (providers expect 2xx within a few seconds); process async.
   res.status(204).end();
 
-  let events: Array<Record<string, unknown>> = [];
-  try {
-    events = JSON.parse(rawBody || "[]");
-  } catch {
-    logger.error("Webhook body is not valid JSON");
-    return;
-  }
-
+  const events = channel.parseWebhook?.(rawBody) ?? [];
   for (const event of events) {
     try {
-      await handleEvent(event);
+      await handleEvent(connection, event);
     } catch (err) {
       logger.error("Failed handling webhook event", { err: String(err), event });
     }
   }
 });
 
-/** Route a single HubSpot subscription event to the right handler. */
-async function handleEvent(event: Record<string, unknown>) {
-  const type = String(event.subscriptionType ?? "unknown");
-  logger.info("Webhook event received", { type });
-
-  switch (type) {
-    case "contact.creation": {
-      const email = String(event.propertyValue ?? "");
-      if (email) await runOnboardingWorkflow({ email, source: "webhook" });
-      break;
-    }
-    default:
-      logger.debug("Unhandled subscription type", { type });
+/** Apply one normalized inbound event to the core (inbound sync). */
+async function handleEvent(connection: ChannelConnection, event: ChannelEvent) {
+  if (event.type !== "contact.changed") {
+    logger.debug("Unhandled webhook event", { type: event.type });
+    return;
   }
+
+  // We can only reconcile the core record when the provider gave us an email.
+  // (A pull-by-externalId path can be added once channels implement contact.pull.)
+  const email = event.contact?.email;
+  if (!email) {
+    logger.debug("contact.changed without email — skipping inbound upsert", {
+      externalId: event.externalId,
+    });
+    return;
+  }
+
+  const contact = await contactRepository.upsertByEmail(connection.tenantId, {
+    email,
+    firstName: event.contact?.firstName ?? null,
+    lastName: event.contact?.lastName ?? null,
+    phone: event.contact?.phone ?? null,
+  });
+  if (event.externalId) {
+    await contactRepository.setExternalId(
+      connection.tenantId,
+      contact.id,
+      connection.provider,
+      event.externalId,
+    );
+  }
+
+  await syncLog.record({
+    tenantId: connection.tenantId,
+    provider: connection.provider,
+    direction: "inbound",
+    entity: "contact",
+    entityId: contact.id,
+    externalId: event.externalId,
+    status: "ok",
+  });
+  logger.info("Inbound contact synced", { tenantId: connection.tenantId, id: contact.id });
 }
