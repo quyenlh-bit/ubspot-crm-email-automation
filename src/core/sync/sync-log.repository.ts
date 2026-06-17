@@ -18,6 +18,48 @@ export interface SyncLogEntry {
   detail?: string | null;
 }
 
+/** A persisted sync_log row (what the audit UI reads). */
+export interface SyncLogRecord extends SyncLogEntry {
+  id: string;
+  createdAt: Date;
+}
+
+interface SyncLogRow {
+  id: string;
+  tenant_id: string;
+  provider: string;
+  direction: "outbound" | "inbound";
+  entity: "contact" | "deal";
+  entity_id: string | null;
+  external_id: string | null;
+  status: "ok" | "error";
+  detail: string | null;
+  created_at: Date;
+}
+
+const toRecord = (r: SyncLogRow): SyncLogRecord => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  provider: r.provider,
+  direction: r.direction,
+  entity: r.entity,
+  entityId: r.entity_id,
+  externalId: r.external_id,
+  status: r.status,
+  detail: r.detail,
+  createdAt: r.created_at,
+});
+
+/** Most recent audit entries for a tenant (newest first). */
+export async function list(tenantId: string, limit = 100): Promise<SyncLogRecord[]> {
+  const rows = await query<SyncLogRow>(
+    `select id, tenant_id, provider, direction, entity, entity_id, external_id, status, detail, created_at
+       from sync_log where tenant_id = $1 order by created_at desc limit $2`,
+    [tenantId, limit],
+  );
+  return rows.map(toRecord);
+}
+
 export async function record(entry: SyncLogEntry): Promise<void> {
   try {
     await query(

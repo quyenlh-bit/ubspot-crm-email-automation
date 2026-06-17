@@ -6,10 +6,15 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:web": "npm --prefix web run dev",
     "build": "tsc -p tsconfig.json",
+    "build:web": "npm --prefix web run build",
+    "build:all": "npm run build && npm run build:web",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.ts\""
+    "lint": "eslint \"src/**/*.ts\"",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts"
   },
   "engines": {
     "node": ">=20"
