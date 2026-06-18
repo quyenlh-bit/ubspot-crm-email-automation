@@ -84,3 +84,20 @@ export interface CampaignInput {
   audienceLifecycleStage?: string;
   scheduledAt?: string;
 }
+
+export type MessageChannel = "email" | "sms" | "zalo";
+
+export interface ContactConsent {
+  tenantId: string;
+  email: string;
+  channels: Record<MessageChannel, boolean>;
+  updatedAt: string;
+}
+
+export interface SuppressionEntry {
+  id: string;
+  tenantId: string;
+  email: string;
+  reason?: string | null;
+  createdAt: string;
+}

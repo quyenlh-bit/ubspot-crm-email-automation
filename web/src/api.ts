@@ -3,9 +3,12 @@ import type {
   CampaignInput,
   ChannelConnection,
   Contact,
+  ContactConsent,
   EmailTemplate,
+  MessageChannel,
   Provider,
   Stats,
+  SuppressionEntry,
   SyncLogRecord,
   Tenant,
 } from "./types";
@@ -96,6 +99,27 @@ export const createCampaign = (tenantId: string, input: CampaignInput) =>
   });
 export const sendCampaign = (tenantId: string, campaignId: string) =>
   http<Campaign>(`/tenants/${tenantId}/campaigns/${campaignId}/send`, { method: "POST" });
+
+// Compliance — consent & suppression
+export const listConsents = (tenantId: string) =>
+  http<ContactConsent[]>(`/tenants/${tenantId}/consent`);
+export const setConsent = (tenantId: string, email: string, channel: MessageChannel, optedIn: boolean) =>
+  http<{ ok: boolean }>(`/tenants/${tenantId}/consent`, {
+    method: "PUT",
+    body: JSON.stringify({ email, channel, optedIn }),
+  });
+export const listSuppression = (tenantId: string) =>
+  http<SuppressionEntry[]>(`/tenants/${tenantId}/suppression`);
+export const addSuppression = (tenantId: string, email: string, reason?: string) =>
+  http<SuppressionEntry>(`/tenants/${tenantId}/suppression`, {
+    method: "POST",
+    body: JSON.stringify({ email, reason }),
+  });
+export const removeSuppression = (tenantId: string, email: string) =>
+  http<{ ok: boolean }>(`/tenants/${tenantId}/suppression/remove`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
 
 // Workflows
 export const triggerOnboarding = (

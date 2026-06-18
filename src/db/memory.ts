@@ -7,7 +7,10 @@ import type {
   ChannelConnection,
   ChannelProvider,
   Contact,
+  ContactConsent,
   ContactInput,
+  MessageChannelType,
+  SuppressionEntry,
   Tenant,
 } from "../core/domain.js";
 import type { ContactRepository } from "../core/contacts/contact.repository.js";
@@ -203,6 +206,65 @@ class InMemoryCampaignRepository {
   }
 }
 
+const emptyChannels = (): Record<MessageChannelType, boolean> => ({ email: false, sms: false, zalo: false });
+
+interface ConsentRow {
+  tenantId: string;
+  email: string;
+  channel: MessageChannelType;
+  optedIn: boolean;
+  updatedAt: Date;
+}
+
+const consentRows: ConsentRow[] = [];
+export const memConsent = {
+  async setConsent(tenantId: string, email: string, channel: MessageChannelType, optedIn: boolean): Promise<void> {
+    const row = consentRows.find((r) => r.tenantId === tenantId && r.email === email && r.channel === channel);
+    if (row) {
+      row.optedIn = optedIn;
+      row.updatedAt = new Date();
+    } else {
+      consentRows.push({ tenantId, email, channel, optedIn, updatedAt: new Date() });
+    }
+  },
+  async isOptedIn(tenantId: string, email: string, channel: MessageChannelType): Promise<boolean> {
+    return consentRows.find((r) => r.tenantId === tenantId && r.email === email && r.channel === channel)?.optedIn ?? false;
+  },
+  async listConsents(tenantId: string): Promise<ContactConsent[]> {
+    const byEmail = new Map<string, ContactConsent>();
+    for (const r of consentRows.filter((x) => x.tenantId === tenantId)) {
+      const c = byEmail.get(r.email) ?? { tenantId, email: r.email, channels: emptyChannels(), updatedAt: r.updatedAt };
+      c.channels[r.channel] = r.optedIn;
+      if (r.updatedAt > c.updatedAt) c.updatedAt = r.updatedAt;
+      byEmail.set(r.email, c);
+    }
+    return [...byEmail.values()];
+  },
+};
+
+const suppressionRows: SuppressionEntry[] = [];
+export const memSuppression = {
+  async add(tenantId: string, email: string, reason: string | null): Promise<SuppressionEntry> {
+    const existing = suppressionRows.find((r) => r.tenantId === tenantId && r.email === email);
+    if (existing) return existing;
+    const entry: SuppressionEntry = { id: randomUUID(), tenantId, email, reason, createdAt: new Date() };
+    suppressionRows.push(entry);
+    return entry;
+  },
+  async remove(tenantId: string, email: string): Promise<void> {
+    const i = suppressionRows.findIndex((r) => r.tenantId === tenantId && r.email === email);
+    if (i >= 0) suppressionRows.splice(i, 1);
+  },
+  async list(tenantId: string): Promise<SuppressionEntry[]> {
+    return suppressionRows
+      .filter((r) => r.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  },
+  async has(tenantId: string, email: string): Promise<boolean> {
+    return suppressionRows.some((r) => r.tenantId === tenantId && r.email === email);
+  },
+};
+
 export const memTenants = new InMemoryTenantRepository();
 export const memContacts = new InMemoryContactRepository();
 export const memConnections = new InMemoryConnectionRepository();
@@ -236,6 +298,12 @@ async function seed() {
     body: "Xin chào {{firstName}},\n\nCảm ơn bạn đã tham gia.\n\n— Đội ngũ UrBox",
     audienceLifecycleStage: "lead",
   });
+
+  // Demo contacts opted in to email + zalo (sms left off to show partial consent).
+  for (const email of ["an.nguyen@example.com", "binh.tran@example.com", "chi.le@example.com"]) {
+    await memConsent.setConsent(tenant.id, email, "email", true);
+    await memConsent.setConsent(tenant.id, email, "zalo", true);
+  }
 }
 
 if (useInMemory) {

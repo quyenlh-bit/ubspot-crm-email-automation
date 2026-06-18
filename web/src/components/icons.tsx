@@ -90,3 +90,11 @@ export const IconBell = ({ size = 18 }: IconProps) =>
       <path d="M10 20a2 2 0 0 0 4 0" />
     </>
   ));
+
+export const IconShield = ({ size = 18 }: IconProps) =>
+  wrap(size, (
+    <>
+      <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  ));

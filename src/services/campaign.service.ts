@@ -1,5 +1,6 @@
 import { campaignRepository } from "../core/campaigns/campaign.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
+import { filterSendable } from "../core/compliance/policy.js";
 import type { Campaign, CampaignInput } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
 
@@ -31,13 +32,20 @@ export async function sendCampaign(tenantId: string, campaignId: string): Promis
   if (campaign.status === "sent") return campaign;
 
   const recipients = await resolveRecipients(tenantId, campaign);
-  // TODO: real dispatch — for each recipient, send via the tenant's email channel
-  // (sendTransactionalEmail) with {{firstName}} merged. Simulated for now.
+  // Compliance gate: drop suppressed / non-consenting contacts before sending.
+  const { sendable, skipped } = await filterSendable(
+    tenantId,
+    recipients.map((c) => c.email),
+    "email",
+  );
+  // TODO: real dispatch — for each sendable recipient, send via the tenant's
+  // email channel (sendTransactionalEmail) with {{firstName}} merged. Simulated.
   logger.info("Sending campaign (simulated)", {
     tenantId,
     campaignId,
-    recipients: recipients.length,
+    sendable: sendable.length,
+    skipped: skipped.length,
   });
 
-  return campaignRepository.markSent(tenantId, campaignId, recipients.length);
+  return campaignRepository.markSent(tenantId, campaignId, sendable.length);
 }

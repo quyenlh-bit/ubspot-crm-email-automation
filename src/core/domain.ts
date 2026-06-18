@@ -101,3 +101,25 @@ export interface CampaignInput {
   audienceLifecycleStage?: string | null;
   scheduledAt?: Date | null;
 }
+
+/** Delivery channels a message can go out on. Zalo ZNS is mandatory for VN. */
+export type MessageChannelType = "email" | "sms" | "zalo";
+
+export const MESSAGE_CHANNELS: MessageChannelType[] = ["email", "sms", "zalo"];
+
+/** Per-contact marketing consent, by channel (the legal gate — Decree 13). */
+export interface ContactConsent {
+  tenantId: string;
+  email: string;
+  channels: Record<MessageChannelType, boolean>;
+  updatedAt: Date;
+}
+
+/** An email on the suppression list — never contactable (unsub/bounce/manual). */
+export interface SuppressionEntry {
+  id: string;
+  tenantId: string;
+  email: string;
+  reason: string | null;
+  createdAt: Date;
+}

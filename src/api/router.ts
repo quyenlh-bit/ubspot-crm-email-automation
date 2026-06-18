@@ -8,7 +8,10 @@ import { upsertAndSyncContact } from "../services/contact.service.js";
 import { runOnboardingWorkflow } from "../services/automation.service.js";
 import { createCampaign, listCampaigns, sendCampaign } from "../services/campaign.service.js";
 import { EMAIL_TEMPLATES } from "../core/campaigns/templates.js";
-import { CHANNEL_PROVIDERS } from "../core/domain.js";
+import * as consentRepo from "../core/compliance/consent.repository.js";
+import * as suppressionRepo from "../core/compliance/suppression.repository.js";
+import { CHANNEL_PROVIDERS, MESSAGE_CHANNELS } from "../core/domain.js";
+import type { MessageChannelType } from "../core/domain.js";
 import { isProviderSupported } from "../channels/registry.js";
 import type { ChannelConnection, ChannelProvider } from "../core/domain.js";
 
@@ -222,5 +225,53 @@ apiRouter.post(
       String(req.params.campaignId),
     );
     res.json(campaign);
+  }),
+);
+
+// ── Compliance: consent & suppression (Decree 13 gate) ──────────────────────
+
+apiRouter.get(
+  "/tenants/:tenantId/consent",
+  wrap(async (req, res) => res.json(await consentRepo.listConsents(String(req.params.tenantId)))),
+);
+
+const SetConsent = z.object({
+  email: z.string().email(),
+  channel: z.enum(MESSAGE_CHANNELS as [MessageChannelType, ...MessageChannelType[]]),
+  optedIn: z.boolean(),
+});
+apiRouter.put(
+  "/tenants/:tenantId/consent",
+  wrap(async (req, res) => {
+    const parsed = SetConsent.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    await consentRepo.setConsent(String(req.params.tenantId), parsed.data.email, parsed.data.channel, parsed.data.optedIn);
+    res.json({ ok: true });
+  }),
+);
+
+apiRouter.get(
+  "/tenants/:tenantId/suppression",
+  wrap(async (req, res) => res.json(await suppressionRepo.list(String(req.params.tenantId)))),
+);
+
+const AddSuppression = z.object({ email: z.string().email(), reason: z.string().optional() });
+apiRouter.post(
+  "/tenants/:tenantId/suppression",
+  wrap(async (req, res) => {
+    const parsed = AddSuppression.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    res.status(201).json(await suppressionRepo.add(String(req.params.tenantId), parsed.data.email, parsed.data.reason ?? null));
+  }),
+);
+
+const RemoveSuppression = z.object({ email: z.string().email() });
+apiRouter.post(
+  "/tenants/:tenantId/suppression/remove",
+  wrap(async (req, res) => {
+    const parsed = RemoveSuppression.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    await suppressionRepo.remove(String(req.params.tenantId), parsed.data.email);
+    res.json({ ok: true });
   }),
 );

@@ -9,6 +9,7 @@ import {
   IconContacts,
   IconDashboard,
   IconSearch,
+  IconShield,
   IconSyncLog,
   IconTenants,
 } from "./icons";
@@ -30,6 +31,7 @@ const MENU: NavItem[] = [
 ];
 
 const SETTINGS: NavItem[] = [
+  { to: "/compliance", label: "Compliance", icon: IconShield },
   { to: "/sync-log", label: "Sync log", icon: IconSyncLog },
   { to: "/tenants", label: "Tenants", icon: IconTenants },
 ];
