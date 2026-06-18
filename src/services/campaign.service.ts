@@ -2,6 +2,7 @@ import { campaignRepository } from "../core/campaigns/campaign.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
 import { deliver } from "../deliver/delivery.service.js";
 import * as events from "../core/events/event.repository.js";
+import { writeConversion } from "./writeback.service.js";
 import { getSegment, resolveMembers } from "./segment.service.js";
 import type { Campaign, CampaignInput } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
@@ -96,7 +97,9 @@ export async function simulateEngagement(
       click += 1;
     }
     if (i < conversions) {
-      await events.record(tenantId, { type: "conversion", ...base, amount: 200_000 + i * 50_000 });
+      const amount = 200_000 + i * 50_000;
+      await events.record(tenantId, { type: "conversion", ...base, amount });
+      await writeConversion(tenantId, email, `Chuyển đổi ${amount}đ từ campaign ${campaignId}`);
       conversion += 1;
     }
   }

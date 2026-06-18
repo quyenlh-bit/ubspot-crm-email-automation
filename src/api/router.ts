@@ -9,6 +9,7 @@ import { runOnboardingWorkflow } from "../services/automation.service.js";
 import { createCampaign, listCampaigns, sendCampaign, simulateEngagement } from "../services/campaign.service.js";
 import { getAttribution, getFunnel } from "../services/analytics.service.js";
 import { findDuplicates, mergeContacts } from "../services/identity.service.js";
+import { writeConversion } from "../services/writeback.service.js";
 import { apiKeyRepository } from "../core/auth/apikey.repository.js";
 import { authMiddleware } from "./auth.js";
 import * as eventRepo from "../core/events/event.repository.js";
@@ -308,7 +309,12 @@ apiRouter.post(
   wrap(async (req, res) => {
     const parsed = RecordEvent.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
-    res.status(201).json(await eventRepo.record(String(req.params.tenantId), parsed.data));
+    const tenantId = String(req.params.tenantId);
+    const event = await eventRepo.record(tenantId, parsed.data);
+    if (parsed.data.type === "conversion") {
+      await writeConversion(tenantId, parsed.data.email, `Chuyển đổi ${parsed.data.amount ?? 0}đ`);
+    }
+    res.status(201).json(event);
   }),
 );
 

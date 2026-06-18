@@ -130,4 +130,15 @@ export class HubSpotChannel implements CrmChannel {
   get sdk(): Client {
     return this.client;
   }
+
+  /**
+   * Write an engagement (e.g. a conversion note) back to HubSpot for a contact —
+   * the optional Phase 2 "engagement write-back". v1 is simulated (logged); the
+   * real path creates a Note engagement via the SDK and associates it to the
+   * contact by email, which needs a real portal + scopes.
+   */
+  async writeEngagement(email: string, summary: string): Promise<void> {
+    // TODO(real): this.client.crm.objects.notes.basicApi.create({ ... }) + association.
+    logger.info("HubSpot write-back (simulated)", { email, summary });
+  }
 }
