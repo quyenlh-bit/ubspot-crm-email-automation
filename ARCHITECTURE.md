@@ -11,12 +11,19 @@ marketing theo vòng đời khách hàng**: dữ liệu KH (CDP-lite) → phân 
 journey → gửi đa kênh (có Zalo ZNS + voucher) → đo lường & attribution về doanh thu
 loyalty. HubSpot là **một nguồn/đích** (connector), không phải lõi.
 
-**Trạng thái tổng thể:** đã dựng các *lát cắt mỏng* xuyên DATA → ORCHESTRATE(campaign)
-→ DELIVER(email) → MEASURE(dashboard) trên nền multi-tenant ⇒ mức **"campaign blast"**.
-Các thành phần định nghĩa nên một MAP thật (segmentation engine, journey orchestration,
-Zalo ZNS + voucher injection, attribution, và các cổng pháp lý) **chưa có**.
+**Trạng thái tổng thể (sau roadmap A→D):** đã có **v1 chạy được của cả 6 lớp** —
+compliance gate (consent + suppression), segmentation engine (static/dynamic), journey
+builder (send/wait/exit), delivery đa kênh (email/SMS/Zalo ZNS, simulated) + voucher +
+frequency cap, và MEASURE (funnel + attribution ROI). Toàn bộ chạy trên dual backend
+(Postgres + in-memory) với admin UI.
 
-Chú thích trạng thái: ✅ có · 🟡 một phần · ⬜ chưa có.
+**Còn lại (Phase 2 / production):** tích hợp provider thật (HubSpot transactional / SMS
+gateway / Zalo ZNS API), scheduler/worker để auto-dispatch journey & scheduled campaign,
+real open/click tracking (pixel/link), identity resolution, RBAC/auth, deliverability infra
+(SPF/DKIM/bounce), HubSpot engagement write-back. Các phần "simulated" được đánh dấu rõ
+trong code (TODO).
+
+Chú thích trạng thái: ✅ v1 có · 🟡 một phần · ⬜ chưa có.
 
 ## Tech stack hiện tại
 
@@ -29,14 +36,14 @@ Chú thích trạng thái: ✅ có · 🟡 một phần · ⬜ chưa có.
 
 ## Ánh xạ 6 lớp → codebase
 
-| Lớp | Mục tiêu | Trạng thái | Hiện thực (file) | Gap chính |
+| Lớp | Mục tiêu | Trạng thái | Hiện thực (file) | Gap còn lại |
 |---|---|---|---|---|
-| **1. DATA** | CDP-lite: ingest contact/lead/status + behavioral event, unified profile, identity resolution, **Consent center** | 🟡 | `core/domain.ts` (Contact/Tenant), `core/contacts/contact.repository.ts`, `channels/hubspot/*` (sync out), `webhooks/router.ts` (sync in) | behavioral events, behavior trong profile, identity resolution, **consent/preference** |
-| **2. TARGET** | Static list + **dynamic segment** | 🟡 | campaign `audienceLifecycleStage` + `campaign.service.ts › resolveRecipients` | segment là entity, dynamic segment (auto theo attribute/behavior/lifecycle) |
-| **3. ORCHESTRATE** | Journey: Trigger→Condition→Action, multi-step, wait/delay, A/B, exit | 🟡 | `services/campaign.service.ts` (campaign 1 bước), `services/automation.service.ts` (onboarding hardcode) | **journey engine** (trigger/branch/đa bước/A-B/exit) |
-| **4. DELIVER** | email/SMS/push/**Zalo ZNS** + personalization + **voucher injection** + frequency cap/STO/throttle | 🟡 | `services/email.service.ts` (HubSpot single-send), `core/campaigns/templates.ts` (merge `{{firstName}}`) | **Zalo ZNS (bắt buộc VN)**, SMS/push, **voucher injection**, frequency cap/throttle, message-channel abstraction riêng |
-| **5. MEASURE** | open/click/conversion, funnel, A/B, **attribution → redemption** | 🟡 | `core/sync/sync-log.repository.ts`, dashboard (`web/src/pages/Dashboard.tsx`) | event tracking, journey funnel, **attribution ROI** |
-| **6. FOUNDATION** | HubSpot connector, **Decree 13 + suppression**, RBAC, audit, deliverability | 🟡 | `channels/` (connector in/out), `core/channels/connection.repository.ts`, multi-tenant, `sync_log` | **suppression list, Decree 13, RBAC**, deliverability infra |
+| **1. DATA** | CDP-lite: ingest contact/lead/status + behavioral event, unified profile, identity resolution, **Consent center** | 🟡 | `core/contacts/*`, `channels/hubspot/*` (sync out), `webhooks/router.ts` (sync in), **`core/compliance/consent.*` (consent center ✅)** | behavioral events đầy đủ, identity resolution |
+| **2. TARGET** | Static list + **dynamic segment** | ✅ | `core/segments/*`, `services/segment.service.ts` (resolveMembers, static + dynamic theo lifecycle) | rule nâng cao (theo behavior/event) |
+| **3. ORCHESTRATE** | Journey: Trigger→Condition→Action, multi-step, wait/delay, A/B, exit | 🟡 | `core/journeys/*`, `services/journey.service.ts` (enrol segment → send/wait/exit, run mô phỏng), `services/campaign.service.ts` | branch/condition, A/B split, time-trigger, auto-dispatch (worker) |
+| **4. DELIVER** | email/SMS/push/**Zalo ZNS** + personalization + **voucher injection** + frequency cap/STO/throttle | 🟡 | `deliver/channel.ts` (email/SMS/**Zalo** registry), `deliver/delivery.service.ts` (gate + **frequency cap** + **voucher inject** + dispatch mô phỏng) | provider dispatch thật, send-time optimization |
+| **5. MEASURE** | open/click/conversion, funnel, **attribution → redemption** | 🟡 | `core/events/*`, `services/analytics.service.ts` (funnel + **attribution ROI**), dashboard funnel/ROI | open/click tracking thật (pixel/link), journey funnel |
+| **6. FOUNDATION** | HubSpot connector, **Decree 13 + suppression**, RBAC, audit, deliverability | 🟡 | `channels/*` (connector in/out), **`core/compliance/suppression.*` ✅**, multi-tenant, `sync_log` | **RBAC/auth**, deliverability infra, HubSpot write-back |
 
 ## Chi tiết từng lớp
 
@@ -88,15 +95,16 @@ suppression list (lớp 6). Gửi khi chưa có 2 cái này = rủi ro tuân th�
 
 ## Roadmap đề xuất (phân phase)
 
-| Phase | Hạng mục | Lớp | Mở khoá |
+| Phase | Hạng mục | Lớp | Trạng thái |
 |---|---|---|---|
-| **A** | Consent/preference + suppression list | 1, 6 | Gửi hợp pháp (Decree 13) — *điều kiện cần* để DELIVER thật |
-| **B** | Segmentation engine (static + dynamic) → Journey builder (trigger/branch/đa bước/A-B/exit) | 2, 3 | Nhắm mục tiêu thật + điều phối journey — *giá trị lõi MAP* |
-| **C** | MessageChannel abstraction + **Zalo ZNS** + **voucher injection** + frequency cap/throttle | 4 | Reach thị trường VN + lợi thế đặc thù UrBox |
-| **D** | Event tracking (open/click/conv) + journey funnel + **attribution → redemption** | 5, 1 | Chứng minh ROI; behavioral event cũng làm giàu lớp DATA |
-| **Phase 2** | HubSpot engagement write-back; deliverability infra; RBAC | 6 | Đồng bộ 2 chiều nâng cao, vận hành production |
+| **A** | Consent/preference + suppression list | 1, 6 | ✅ v1 (gate enforce trong delivery) |
+| **B** | Segmentation engine (static + dynamic) → Journey builder (send/wait/exit) | 2, 3 | ✅ v1 (branch/A-B/time-trigger để Phase 2) |
+| **C** | MessageChannel abstraction + **Zalo ZNS** + **voucher injection** + frequency cap | 4 | ✅ v1 (transports simulated) |
+| **D** | Event tracking + funnel + **attribution → redemption** | 5 | ✅ v1 (open/click qua tracking endpoint / mô phỏng) |
+| **Phase 2** | Provider dispatch thật, scheduler/worker, real open/click tracking, identity resolution, RBAC/auth, deliverability infra, HubSpot write-back | tất cả | ⬜ chưa làm |
 
-> Phụ thuộc: B cần segment trước journey; C/D cần event store (một phần của A/D ở lớp DATA).
+> v1 A→D đã build & verify trên in-memory backend. "Simulated" = không gọi provider
+> thật / không có delay thật; logic gate/segment/funnel/attribution là thật.
 
 ## Cấu trúc module mục tiêu (khi refactor)
 
