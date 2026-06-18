@@ -6,7 +6,7 @@ import Contacts from "./pages/Contacts";
 import Segments from "./pages/Segments";
 import Connections from "./pages/Connections";
 import Campaigns from "./pages/Campaigns";
-import Journeys from "./pages/Journeys";
+import Workflows from "./pages/Workflows";
 import Automation from "./pages/Automation";
 import Compliance from "./pages/Compliance";
 import SyncLog from "./pages/SyncLog";
@@ -22,7 +22,7 @@ export default function App() {
           <Route path="/segments" element={<Segments />} />
           <Route path="/connections" element={<Connections />} />
           <Route path="/campaigns" element={<Campaigns />} />
-          <Route path="/journeys" element={<Journeys />} />
+          <Route path="/workflows" element={<Workflows />} />
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/automation" element={<Automation />} />
           <Route path="/sync-log" element={<SyncLog />} />

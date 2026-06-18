@@ -236,6 +236,37 @@ input:focus, select:focus, textarea:focus {
 .journey-top { display: flex; align-items: center; gap: 10px; }
 .journey-steps { display: flex; flex-wrap: wrap; margin-top: 8px; }
 
+/* ── Workflow canvas ────────────────────────────────────────────────────── */
+.wf-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.wf-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
+.wf-side { display: flex; flex-direction: column; gap: 6px; }
+.wf-side-title { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.wf-add { justify-content: flex-start; text-align: left; }
+.wf-add.sel { border-color: var(--primary); color: var(--primary-d); }
+.wf-config { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fbfbfe; display: flex; flex-direction: column; gap: 10px; }
+.wf-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; }
+.wf-canvas { height: 620px; border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; background: var(--surface); }
+
+.wf-node {
+  position: relative; min-width: 150px; padding: 10px 12px; border-radius: 12px;
+  background: #fff; border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(16,24,40,.08); font-size: 13px;
+}
+.wf-node.sel { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.wf-node-title { font-weight: 700; color: var(--ink); }
+.wf-node-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.wf-node.wf-trigger { background: var(--primary-soft); border-color: #c7c0fb; }
+.wf-node.wf-send { border-left: 4px solid #6d5ef0; }
+.wf-node.wf-wait { border-left: 4px solid #f59e0b; }
+.wf-node.wf-condition { border-left: 4px solid #0ea5e9; }
+.wf-node.wf-update_contact { border-left: 4px solid #14b8a6; }
+.wf-node.wf-webhook { border-left: 4px solid #64748b; }
+.wf-node.wf-exit { border-left: 4px solid #e11d48; }
+.wf-count {
+  position: absolute; top: -10px; right: -10px; min-width: 22px; height: 22px; padding: 0 6px;
+  background: var(--primary); color: #fff; border-radius: 999px; font-size: 12px; font-weight: 700;
+  display: grid; place-items: center;
+}
+
 /* ── Funnel & attribution ───────────────────────────────────────────────── */
 .funnel { display: flex; flex-direction: column; gap: 12px; }
 .funnel-row { display: flex; align-items: center; gap: 12px; }

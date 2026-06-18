@@ -121,7 +121,42 @@ export interface JourneyStep {
 
 export interface JourneyRunSummary {
   enrolled: number;
-  steps: { index: number; type: string; detail: string; count: number }[];
+  steps: { index: number; nodeId?: string; type: string; detail: string; count: number }[];
+}
+
+export type WorkflowTriggerType = "segment_entry" | "event" | "schedule" | "property_change";
+export interface WorkflowTrigger {
+  type: WorkflowTriggerType;
+  segmentId?: string | null;
+  eventType?: string | null;
+  cron?: string | null;
+  property?: string | null;
+  value?: string | null;
+}
+
+export type WorkflowNodeType = "send" | "wait" | "condition" | "update_contact" | "webhook" | "exit";
+export interface WorkflowCondition {
+  kind: "lifecycle_is" | "opened" | "clicked";
+  value?: string | null;
+}
+export interface WorkflowNode {
+  id: string;
+  type: WorkflowNodeType;
+  position: { x: number; y: number };
+  label?: string | null;
+  channel?: MessageChannel | null;
+  templateId?: string | null;
+  voucherCode?: string | null;
+  waitHours?: number | null;
+  condition?: WorkflowCondition | null;
+  setLifecycleStage?: string | null;
+  webhookUrl?: string | null;
+}
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  branch?: "yes" | "no" | null;
 }
 
 export interface Journey {
@@ -130,7 +165,10 @@ export interface Journey {
   name: string;
   segmentId: string | null;
   steps: JourneyStep[];
-  status: "draft" | "active";
+  trigger?: WorkflowTrigger | null;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  status: "draft" | "active" | "paused";
   lastRunAt?: string | null;
   lastRunSummary?: JourneyRunSummary | null;
   createdAt: string;
@@ -140,7 +178,18 @@ export interface Journey {
 export interface JourneyInput {
   name: string;
   segmentId: string | null;
-  steps: JourneyStep[];
+  trigger?: WorkflowTrigger | null;
+  nodes?: WorkflowNode[];
+  edges?: WorkflowEdge[];
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  trigger: WorkflowTrigger;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
 }
 
 export interface DuplicateGroup {
