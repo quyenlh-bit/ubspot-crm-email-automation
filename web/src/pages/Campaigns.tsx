@@ -1,16 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { useTenant } from "../TenantContext";
 import { useAsync } from "../useAsync";
-import { createCampaign, getTemplates, listCampaigns, sendCampaign } from "../api";
+import { createCampaign, getTemplates, listCampaigns, listSegments, sendCampaign } from "../api";
 import { Card, EmptyState, ErrorBox, Loading, StatusBadge } from "../components/ui";
 
 const LIFECYCLE_STAGES = ["lead", "subscriber", "customer", "opportunity", "other"];
-const EMPTY = { name: "", templateId: "", subject: "", body: "", audienceLifecycleStage: "", scheduledAt: "" };
+const EMPTY = { name: "", templateId: "", subject: "", body: "", segmentId: "", audienceLifecycleStage: "", scheduledAt: "" };
 
 export default function Campaigns() {
   const { selectedId } = useTenant();
   const campaigns = useAsync(() => listCampaigns(selectedId!), [selectedId]);
   const templates = useAsync(() => getTemplates(), []);
+  const segments = useAsync(() => listSegments(selectedId!), [selectedId]);
   const [form, setForm] = useState({ ...EMPTY });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -43,7 +44,8 @@ export default function Campaigns() {
         templateId: form.templateId || undefined,
         subject: form.subject,
         body: form.body,
-        audienceLifecycleStage: form.audienceLifecycleStage || undefined,
+        segmentId: form.segmentId || undefined,
+        audienceLifecycleStage: form.segmentId ? undefined : form.audienceLifecycleStage || undefined,
         scheduledAt: form.scheduledAt || undefined,
       });
       setForm({ ...EMPTY });
@@ -99,8 +101,17 @@ export default function Campaigns() {
               style={{ padding: "9px 11px", border: "1px solid var(--border)", borderRadius: 8, fontFamily: "inherit", fontSize: 14, resize: "vertical" }} />
           </label>
           <label>
-            Audience (lifecycle stage)
-            <select value={form.audienceLifecycleStage} onChange={(e) => set("audienceLifecycleStage", e.target.value)}>
+            Segment (ưu tiên nếu chọn)
+            <select value={form.segmentId} onChange={(e) => set("segmentId", e.target.value)}>
+              <option value="">— Không dùng segment —</option>
+              {(segments.data ?? []).map((s) => (
+                <option key={s.id} value={s.id}>{s.name} ({s.memberCount ?? "?"})</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Audience (lifecycle stage) <span className="muted small">— dùng khi không chọn segment</span>
+            <select value={form.audienceLifecycleStage} onChange={(e) => set("audienceLifecycleStage", e.target.value)} disabled={!!form.segmentId}>
               <option value="">Tất cả contact</option>
               {LIFECYCLE_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>

@@ -81,6 +81,8 @@ export interface Campaign {
   templateId?: string | null;
   subject: string;
   body: string;
+  /** Optional saved segment as the audience (takes precedence over lifecycle). */
+  segmentId?: string | null;
   /** Target audience: contacts with this lifecycle stage. Null/empty = everyone. */
   audienceLifecycleStage?: string | null;
   scheduledAt?: Date | null;
@@ -98,8 +100,33 @@ export interface CampaignInput {
   templateId?: string | null;
   subject: string;
   body: string;
+  /** Optional: target a saved segment. Takes precedence over audienceLifecycleStage. */
+  segmentId?: string | null;
   audienceLifecycleStage?: string | null;
   scheduledAt?: Date | null;
+}
+
+/** A reusable audience. Static = explicit emails; dynamic = rule-evaluated live. */
+export type SegmentType = "static" | "dynamic";
+
+export interface Segment {
+  id: string;
+  tenantId: string;
+  name: string;
+  type: SegmentType;
+  /** Dynamic rule: match contacts in these lifecycle stages (empty = everyone). */
+  lifecycleStages: string[];
+  /** Static membership: explicit contact emails. */
+  memberEmails: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SegmentInput {
+  name: string;
+  type: SegmentType;
+  lifecycleStages?: string[];
+  memberEmails?: string[];
 }
 
 /** Delivery channels a message can go out on. Zalo ZNS is mandatory for VN. */

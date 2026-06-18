@@ -1,6 +1,7 @@
 import { campaignRepository } from "../core/campaigns/campaign.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
 import { filterSendable } from "../core/compliance/policy.js";
+import { getSegment, resolveMembers } from "./segment.service.js";
 import type { Campaign, CampaignInput } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
 
@@ -18,8 +19,15 @@ export const createCampaign = (tenantId: string, input: CampaignInput): Promise<
 export const listCampaigns = (tenantId: string): Promise<Campaign[]> =>
   campaignRepository.list(tenantId);
 
-/** Resolve the contacts a campaign targets (lifecycle stage; empty = all). */
+/**
+ * Resolve the contacts a campaign targets. A saved segment (if set) takes
+ * precedence; otherwise fall back to the lifecycle-stage filter (empty = all).
+ */
 async function resolveRecipients(tenantId: string, campaign: Campaign) {
+  if (campaign.segmentId) {
+    const segment = await getSegment(tenantId, campaign.segmentId);
+    if (segment) return resolveMembers(tenantId, segment);
+  }
   const contacts = await contactRepository.list(tenantId, 1000);
   const stage = campaign.audienceLifecycleStage;
   return stage ? contacts.filter((c) => c.lifecycleStage === stage) : contacts;

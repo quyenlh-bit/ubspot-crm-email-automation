@@ -3,6 +3,7 @@ import { TenantProvider } from "./TenantContext";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Contacts from "./pages/Contacts";
+import Segments from "./pages/Segments";
 import Connections from "./pages/Connections";
 import Campaigns from "./pages/Campaigns";
 import Automation from "./pages/Automation";
@@ -17,6 +18,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/contacts" element={<Contacts />} />
+          <Route path="/segments" element={<Segments />} />
           <Route path="/connections" element={<Connections />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/compliance" element={<Compliance />} />

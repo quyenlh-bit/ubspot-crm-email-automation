@@ -7,6 +7,8 @@ import * as syncLog from "../core/sync/sync-log.repository.js";
 import { upsertAndSyncContact } from "../services/contact.service.js";
 import { runOnboardingWorkflow } from "../services/automation.service.js";
 import { createCampaign, listCampaigns, sendCampaign } from "../services/campaign.service.js";
+import { createSegment, listSegmentsWithCount, resolveMembers } from "../services/segment.service.js";
+import { segmentRepository } from "../core/segments/segment.repository.js";
 import { EMAIL_TEMPLATES } from "../core/campaigns/templates.js";
 import * as consentRepo from "../core/compliance/consent.repository.js";
 import * as suppressionRepo from "../core/compliance/suppression.repository.js";
@@ -195,6 +197,7 @@ const CreateCampaign = z.object({
   templateId: z.string().optional(),
   subject: z.string().min(1),
   body: z.string().min(1),
+  segmentId: z.string().optional(),
   audienceLifecycleStage: z.string().optional(),
   // Accepts the UI's datetime-local value ("YYYY-MM-DDTHH:mm") or any ISO string.
   scheduledAt: z.string().min(1).optional(),
@@ -225,6 +228,37 @@ apiRouter.post(
       String(req.params.campaignId),
     );
     res.json(campaign);
+  }),
+);
+
+// ── Segments (TARGET) ───────────────────────────────────────────────────────
+
+apiRouter.get(
+  "/tenants/:tenantId/segments",
+  wrap(async (req, res) => res.json(await listSegmentsWithCount(String(req.params.tenantId)))),
+);
+
+const CreateSegment = z.object({
+  name: z.string().min(1),
+  type: z.enum(["static", "dynamic"]),
+  lifecycleStages: z.array(z.string()).optional(),
+  memberEmails: z.array(z.string().email()).optional(),
+});
+apiRouter.post(
+  "/tenants/:tenantId/segments",
+  wrap(async (req, res) => {
+    const parsed = CreateSegment.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    res.status(201).json(await createSegment(String(req.params.tenantId), parsed.data));
+  }),
+);
+
+apiRouter.get(
+  "/tenants/:tenantId/segments/:segmentId/members",
+  wrap(async (req, res) => {
+    const segment = await segmentRepository.findById(String(req.params.tenantId), String(req.params.segmentId));
+    if (!segment) return res.status(404).json({ error: "segment not found" });
+    res.json(await resolveMembers(String(req.params.tenantId), segment));
   }),
 );
 

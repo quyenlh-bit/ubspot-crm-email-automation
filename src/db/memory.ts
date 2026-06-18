@@ -10,6 +10,8 @@ import type {
   ContactConsent,
   ContactInput,
   MessageChannelType,
+  Segment,
+  SegmentInput,
   SuppressionEntry,
   Tenant,
 } from "../core/domain.js";
@@ -175,6 +177,7 @@ class InMemoryCampaignRepository {
       templateId: input.templateId ?? null,
       subject: input.subject,
       body: input.body,
+      segmentId: input.segmentId ?? null,
       audienceLifecycleStage: input.audienceLifecycleStage ?? null,
       scheduledAt: input.scheduledAt ?? null,
       status: input.scheduledAt ? "scheduled" : "draft",
@@ -265,10 +268,38 @@ export const memSuppression = {
   },
 };
 
+class InMemorySegmentRepository {
+  private rows: Segment[] = [];
+  async create(tenantId: string, input: SegmentInput): Promise<Segment> {
+    const now = new Date();
+    const seg: Segment = {
+      id: randomUUID(),
+      tenantId,
+      name: input.name,
+      type: input.type,
+      lifecycleStages: input.lifecycleStages ?? [],
+      memberEmails: input.memberEmails ?? [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.rows.push(seg);
+    return seg;
+  }
+  async list(tenantId: string): Promise<Segment[]> {
+    return this.rows
+      .filter((r) => r.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async findById(tenantId: string, id: string): Promise<Segment | null> {
+    return this.rows.find((r) => r.tenantId === tenantId && r.id === id) ?? null;
+  }
+}
+
 export const memTenants = new InMemoryTenantRepository();
 export const memContacts = new InMemoryContactRepository();
 export const memConnections = new InMemoryConnectionRepository();
 export const memCampaigns = new InMemoryCampaignRepository();
+export const memSegments = new InMemorySegmentRepository();
 
 /** Pre-populate demo data so the UI isn't empty on first load. */
 async function seed() {
@@ -304,6 +335,9 @@ async function seed() {
     await memConsent.setConsent(tenant.id, email, "email", true);
     await memConsent.setConsent(tenant.id, email, "zalo", true);
   }
+
+  await memSegments.create(tenant.id, { name: "Leads (dynamic)", type: "dynamic", lifecycleStages: ["lead"] });
+  await memSegments.create(tenant.id, { name: "Khách hàng (dynamic)", type: "dynamic", lifecycleStages: ["customer"] });
 }
 
 if (useInMemory) {

@@ -81,8 +81,30 @@ export interface CampaignInput {
   templateId?: string;
   subject: string;
   body: string;
+  segmentId?: string;
   audienceLifecycleStage?: string;
   scheduledAt?: string;
+}
+
+export type SegmentType = "static" | "dynamic";
+
+export interface Segment {
+  id: string;
+  tenantId: string;
+  name: string;
+  type: SegmentType;
+  lifecycleStages: string[];
+  memberEmails: string[];
+  memberCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SegmentInput {
+  name: string;
+  type: SegmentType;
+  lifecycleStages?: string[];
+  memberEmails?: string[];
 }
 
 export type MessageChannel = "email" | "sms" | "zalo";

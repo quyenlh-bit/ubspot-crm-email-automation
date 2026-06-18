@@ -9,6 +9,7 @@ import {
   IconContacts,
   IconDashboard,
   IconSearch,
+  IconSegments,
   IconShield,
   IconSyncLog,
   IconTenants,
@@ -25,6 +26,7 @@ type NavItem = {
 const MENU: NavItem[] = [
   { to: "/", label: "Dashboard", icon: IconDashboard, end: true },
   { to: "/contacts", label: "Contacts", icon: IconContacts },
+  { to: "/segments", label: "Segments", icon: IconSegments },
   { to: "/connections", label: "Connections", icon: IconConnections },
   { to: "/campaigns", label: "Campaigns", icon: IconCampaigns, badge: "NEW" },
   { to: "/automation", label: "Automation", icon: IconAutomation },

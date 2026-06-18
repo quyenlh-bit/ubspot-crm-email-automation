@@ -7,6 +7,8 @@ import type {
   EmailTemplate,
   MessageChannel,
   Provider,
+  Segment,
+  SegmentInput,
   Stats,
   SuppressionEntry,
   SyncLogRecord,
@@ -88,6 +90,12 @@ export const createContact = (tenantId: string, input: Partial<Contact>) =>
 // Sync log
 export const listSyncLog = (tenantId: string) =>
   http<SyncLogRecord[]>(`/tenants/${tenantId}/sync-log`);
+
+// Segments
+export const listSegments = (tenantId: string) =>
+  http<Segment[]>(`/tenants/${tenantId}/segments`);
+export const createSegment = (tenantId: string, input: SegmentInput) =>
+  http<Segment>(`/tenants/${tenantId}/segments`, { method: "POST", body: JSON.stringify(input) });
 
 // Campaigns
 export const listCampaigns = (tenantId: string) =>
