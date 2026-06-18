@@ -5,6 +5,8 @@ import type {
   Contact,
   ContactConsent,
   EmailTemplate,
+  Journey,
+  JourneyInput,
   MessageChannel,
   Provider,
   Segment,
@@ -96,6 +98,14 @@ export const listSegments = (tenantId: string) =>
   http<Segment[]>(`/tenants/${tenantId}/segments`);
 export const createSegment = (tenantId: string, input: SegmentInput) =>
   http<Segment>(`/tenants/${tenantId}/segments`, { method: "POST", body: JSON.stringify(input) });
+
+// Journeys
+export const listJourneys = (tenantId: string) =>
+  http<Journey[]>(`/tenants/${tenantId}/journeys`);
+export const createJourney = (tenantId: string, input: JourneyInput) =>
+  http<Journey>(`/tenants/${tenantId}/journeys`, { method: "POST", body: JSON.stringify(input) });
+export const runJourney = (tenantId: string, journeyId: string) =>
+  http<Journey>(`/tenants/${tenantId}/journeys/${journeyId}/run`, { method: "POST" });
 
 // Campaigns
 export const listCampaigns = (tenantId: string) =>

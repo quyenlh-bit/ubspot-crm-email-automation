@@ -129,6 +129,43 @@ export interface SegmentInput {
   memberEmails?: string[];
 }
 
+/** A step in a journey: send a message, wait, or exit. */
+export interface JourneyStep {
+  type: "send" | "wait" | "exit";
+  templateId?: string | null; // send
+  channel?: MessageChannelType | null; // send (default email)
+  waitHours?: number | null; // wait
+}
+
+export interface JourneyRunSummary {
+  enrolled: number;
+  steps: { index: number; type: string; detail: string; count: number }[];
+}
+
+/**
+ * A journey: enrol a segment's members, then walk ordered steps. v1 is a linear
+ * send/wait/exit flow run on demand (simulated); branch/A-B/time triggers next.
+ */
+export interface Journey {
+  id: string;
+  tenantId: string;
+  name: string;
+  /** Trigger audience: members of this segment are enrolled. */
+  segmentId: string | null;
+  steps: JourneyStep[];
+  status: "draft" | "active";
+  lastRunAt?: Date | null;
+  lastRunSummary?: JourneyRunSummary | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface JourneyInput {
+  name: string;
+  segmentId: string | null;
+  steps: JourneyStep[];
+}
+
 /** Delivery channels a message can go out on. Zalo ZNS is mandatory for VN. */
 export type MessageChannelType = "email" | "sms" | "zalo";
 

@@ -9,6 +9,7 @@ import { runOnboardingWorkflow } from "../services/automation.service.js";
 import { createCampaign, listCampaigns, sendCampaign } from "../services/campaign.service.js";
 import { createSegment, listSegmentsWithCount, resolveMembers } from "../services/segment.service.js";
 import { segmentRepository } from "../core/segments/segment.repository.js";
+import { createJourney, listJourneys, runJourney } from "../services/journey.service.js";
 import { EMAIL_TEMPLATES } from "../core/campaigns/templates.js";
 import * as consentRepo from "../core/compliance/consent.repository.js";
 import * as suppressionRepo from "../core/compliance/suppression.repository.js";
@@ -259,6 +260,46 @@ apiRouter.get(
     const segment = await segmentRepository.findById(String(req.params.tenantId), String(req.params.segmentId));
     if (!segment) return res.status(404).json({ error: "segment not found" });
     res.json(await resolveMembers(String(req.params.tenantId), segment));
+  }),
+);
+
+// ── Journeys (ORCHESTRATE) ──────────────────────────────────────────────────
+
+apiRouter.get(
+  "/tenants/:tenantId/journeys",
+  wrap(async (req, res) => res.json(await listJourneys(String(req.params.tenantId)))),
+);
+
+const JourneyStep = z.object({
+  type: z.enum(["send", "wait", "exit"]),
+  templateId: z.string().optional(),
+  channel: z.enum(MESSAGE_CHANNELS as [MessageChannelType, ...MessageChannelType[]]).optional(),
+  waitHours: z.number().optional(),
+});
+const CreateJourney = z.object({
+  name: z.string().min(1),
+  segmentId: z.string().nullable().optional(),
+  steps: z.array(JourneyStep).min(1),
+});
+apiRouter.post(
+  "/tenants/:tenantId/journeys",
+  wrap(async (req, res) => {
+    const parsed = CreateJourney.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    const journey = await createJourney(String(req.params.tenantId), {
+      name: parsed.data.name,
+      segmentId: parsed.data.segmentId ?? null,
+      steps: parsed.data.steps,
+    });
+    res.status(201).json(journey);
+  }),
+);
+
+apiRouter.post(
+  "/tenants/:tenantId/journeys/:journeyId/run",
+  wrap(async (req, res) => {
+    const journey = await runJourney(String(req.params.tenantId), String(req.params.journeyId));
+    res.json(journey);
   }),
 );
 

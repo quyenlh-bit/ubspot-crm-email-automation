@@ -91,6 +91,17 @@ export const IconBell = ({ size = 18 }: IconProps) =>
     </>
   ));
 
+export const IconJourneys = ({ size = 18 }: IconProps) =>
+  wrap(size, (
+    <>
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="6" cy="18" r="2.5" />
+      <circle cx="18" cy="12" r="2.5" />
+      <path d="M6 8.5v7" />
+      <path d="M8.3 6.6c4 .4 6 1.8 7.2 4.2M8.3 17.4c4-.4 6-1.8 7.2-4.2" />
+    </>
+  ));
+
 export const IconSegments = ({ size = 18 }: IconProps) =>
   wrap(size, (
     <>

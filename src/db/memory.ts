@@ -9,6 +9,9 @@ import type {
   Contact,
   ContactConsent,
   ContactInput,
+  Journey,
+  JourneyInput,
+  JourneyRunSummary,
   MessageChannelType,
   Segment,
   SegmentInput,
@@ -295,11 +298,50 @@ class InMemorySegmentRepository {
   }
 }
 
+class InMemoryJourneyRepository {
+  private rows: Journey[] = [];
+  async create(tenantId: string, input: JourneyInput): Promise<Journey> {
+    const now = new Date();
+    const journey: Journey = {
+      id: randomUUID(),
+      tenantId,
+      name: input.name,
+      segmentId: input.segmentId,
+      steps: input.steps,
+      status: "draft",
+      lastRunAt: null,
+      lastRunSummary: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.rows.push(journey);
+    return journey;
+  }
+  async list(tenantId: string): Promise<Journey[]> {
+    return this.rows
+      .filter((r) => r.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async findById(tenantId: string, id: string): Promise<Journey | null> {
+    return this.rows.find((r) => r.tenantId === tenantId && r.id === id) ?? null;
+  }
+  async recordRun(tenantId: string, id: string, summary: JourneyRunSummary): Promise<Journey> {
+    const j = this.rows.find((r) => r.tenantId === tenantId && r.id === id);
+    if (!j) throw new Error(`Journey ${id} not found for tenant ${tenantId}`);
+    j.status = "active";
+    j.lastRunAt = new Date();
+    j.lastRunSummary = summary;
+    j.updatedAt = j.lastRunAt;
+    return j;
+  }
+}
+
 export const memTenants = new InMemoryTenantRepository();
 export const memContacts = new InMemoryContactRepository();
 export const memConnections = new InMemoryConnectionRepository();
 export const memCampaigns = new InMemoryCampaignRepository();
 export const memSegments = new InMemorySegmentRepository();
+export const memJourneys = new InMemoryJourneyRepository();
 
 /** Pre-populate demo data so the UI isn't empty on first load. */
 async function seed() {
@@ -336,8 +378,19 @@ async function seed() {
     await memConsent.setConsent(tenant.id, email, "zalo", true);
   }
 
-  await memSegments.create(tenant.id, { name: "Leads (dynamic)", type: "dynamic", lifecycleStages: ["lead"] });
+  const leadSeg = await memSegments.create(tenant.id, { name: "Leads (dynamic)", type: "dynamic", lifecycleStages: ["lead"] });
   await memSegments.create(tenant.id, { name: "Khách hàng (dynamic)", type: "dynamic", lifecycleStages: ["customer"] });
+
+  await memJourneys.create(tenant.id, {
+    name: "Lead onboarding",
+    segmentId: leadSeg.id,
+    steps: [
+      { type: "send", templateId: "welcome", channel: "email" },
+      { type: "wait", waitHours: 48 },
+      { type: "send", templateId: "promo", channel: "zalo" },
+      { type: "exit" },
+    ],
+  });
 }
 
 if (useInMemory) {

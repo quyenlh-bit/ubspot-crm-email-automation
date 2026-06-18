@@ -107,6 +107,37 @@ export interface SegmentInput {
   memberEmails?: string[];
 }
 
+export interface JourneyStep {
+  type: "send" | "wait" | "exit";
+  templateId?: string | null;
+  channel?: "email" | "sms" | "zalo" | null;
+  waitHours?: number | null;
+}
+
+export interface JourneyRunSummary {
+  enrolled: number;
+  steps: { index: number; type: string; detail: string; count: number }[];
+}
+
+export interface Journey {
+  id: string;
+  tenantId: string;
+  name: string;
+  segmentId: string | null;
+  steps: JourneyStep[];
+  status: "draft" | "active";
+  lastRunAt?: string | null;
+  lastRunSummary?: JourneyRunSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JourneyInput {
+  name: string;
+  segmentId: string | null;
+  steps: JourneyStep[];
+}
+
 export type MessageChannel = "email" | "sms" | "zalo";
 
 export interface ContactConsent {

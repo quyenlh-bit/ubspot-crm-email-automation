@@ -8,6 +8,7 @@ import {
   IconConnections,
   IconContacts,
   IconDashboard,
+  IconJourneys,
   IconSearch,
   IconSegments,
   IconShield,
@@ -28,7 +29,8 @@ const MENU: NavItem[] = [
   { to: "/contacts", label: "Contacts", icon: IconContacts },
   { to: "/segments", label: "Segments", icon: IconSegments },
   { to: "/connections", label: "Connections", icon: IconConnections },
-  { to: "/campaigns", label: "Campaigns", icon: IconCampaigns, badge: "NEW" },
+  { to: "/campaigns", label: "Campaigns", icon: IconCampaigns },
+  { to: "/journeys", label: "Journeys", icon: IconJourneys, badge: "NEW" },
   { to: "/automation", label: "Automation", icon: IconAutomation },
 ];
 
