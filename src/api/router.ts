@@ -63,6 +63,11 @@ apiRouter.get(
 );
 
 apiRouter.get(
+  "/channels",
+  wrap(async (_req, res) => res.json(MESSAGE_CHANNELS)),
+);
+
+apiRouter.get(
   "/tenants/:tenantId/stats",
   wrap(async (req, res) => {
     const tenantId = String(req.params.tenantId);
@@ -200,6 +205,8 @@ const CreateCampaign = z.object({
   body: z.string().min(1),
   segmentId: z.string().optional(),
   audienceLifecycleStage: z.string().optional(),
+  channel: z.enum(MESSAGE_CHANNELS as [MessageChannelType, ...MessageChannelType[]]).optional(),
+  voucherCode: z.string().optional(),
   // Accepts the UI's datetime-local value ("YYYY-MM-DDTHH:mm") or any ISO string.
   scheduledAt: z.string().min(1).optional(),
 });

@@ -27,6 +27,8 @@ interface CampaignRow {
   body: string;
   segment_id: string | null;
   audience_lifecycle_stage: string | null;
+  channel: Campaign["channel"];
+  voucher_code: string | null;
   scheduled_at: Date | null;
   status: Campaign["status"];
   recipient_count: number | null;
@@ -44,6 +46,8 @@ const toDomain = (r: CampaignRow): Campaign => ({
   body: r.body,
   segmentId: r.segment_id,
   audienceLifecycleStage: r.audience_lifecycle_stage,
+  channel: r.channel ?? "email",
+  voucherCode: r.voucher_code,
   scheduledAt: r.scheduled_at,
   status: r.status,
   recipientCount: r.recipient_count,
@@ -53,14 +57,14 @@ const toDomain = (r: CampaignRow): Campaign => ({
 });
 
 const COLS =
-  "id, tenant_id, name, template_id, subject, body, segment_id, audience_lifecycle_stage, scheduled_at, status, recipient_count, sent_at, created_at, updated_at";
+  "id, tenant_id, name, template_id, subject, body, segment_id, audience_lifecycle_stage, channel, voucher_code, scheduled_at, status, recipient_count, sent_at, created_at, updated_at";
 
 class PostgresCampaignRepository implements CampaignRepository {
   async create(tenantId: string, input: CampaignInput): Promise<Campaign> {
     const rows = await query<CampaignRow>(
       `insert into campaigns
-         (tenant_id, name, template_id, subject, body, segment_id, audience_lifecycle_stage, scheduled_at, status)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (tenant_id, name, template_id, subject, body, segment_id, audience_lifecycle_stage, channel, voucher_code, scheduled_at, status)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        returning ${COLS}`,
       [
         tenantId,
@@ -70,6 +74,8 @@ class PostgresCampaignRepository implements CampaignRepository {
         input.body,
         input.segmentId ?? null,
         input.audienceLifecycleStage ?? null,
+        input.channel ?? "email",
+        input.voucherCode ?? null,
         input.scheduledAt ?? null,
         initialStatus(input),
       ],

@@ -1,6 +1,6 @@
 import { campaignRepository } from "../core/campaigns/campaign.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
-import { filterSendable } from "../core/compliance/policy.js";
+import { deliver } from "../deliver/delivery.service.js";
 import { getSegment, resolveMembers } from "./segment.service.js";
 import type { Campaign, CampaignInput } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
@@ -40,20 +40,23 @@ export async function sendCampaign(tenantId: string, campaignId: string): Promis
   if (campaign.status === "sent") return campaign;
 
   const recipients = await resolveRecipients(tenantId, campaign);
-  // Compliance gate: drop suppressed / non-consenting contacts before sending.
-  const { sendable, skipped } = await filterSendable(
-    tenantId,
-    recipients.map((c) => c.email),
-    "email",
-  );
-  // TODO: real dispatch — for each sendable recipient, send via the tenant's
-  // email channel (sendTransactionalEmail) with {{firstName}} merged. Simulated.
-  logger.info("Sending campaign (simulated)", {
-    tenantId,
-    campaignId,
-    sendable: sendable.length,
-    skipped: skipped.length,
-  });
+  // Deliver to each recipient through the DELIVER pipeline (gate + frequency cap
+  // + voucher injection + simulated dispatch + sent-event tracking).
+  let sent = 0;
+  for (const c of recipients) {
+    const body = campaign.body.replaceAll("{{firstName}}", c.firstName ?? "bạn");
+    const result = await deliver({
+      tenantId,
+      to: c.email,
+      channel: campaign.channel,
+      subject: campaign.subject,
+      body,
+      voucherCode: campaign.voucherCode,
+      campaignId: campaign.id,
+    });
+    if (result.status === "sent") sent += 1;
+  }
+  logger.info("Campaign delivered (simulated)", { tenantId, campaignId, sent, of: recipients.length });
 
-  return campaignRepository.markSent(tenantId, campaignId, sendable.length);
+  return campaignRepository.markSent(tenantId, campaignId, sent);
 }

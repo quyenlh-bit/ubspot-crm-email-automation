@@ -5,7 +5,8 @@ import { createCampaign, getTemplates, listCampaigns, listSegments, sendCampaign
 import { Card, EmptyState, ErrorBox, Loading, StatusBadge } from "../components/ui";
 
 const LIFECYCLE_STAGES = ["lead", "subscriber", "customer", "opportunity", "other"];
-const EMPTY = { name: "", templateId: "", subject: "", body: "", segmentId: "", audienceLifecycleStage: "", scheduledAt: "" };
+const CHANNELS = ["email", "sms", "zalo"] as const;
+const EMPTY = { name: "", templateId: "", subject: "", body: "", segmentId: "", audienceLifecycleStage: "", channel: "email", voucherCode: "", scheduledAt: "" };
 
 export default function Campaigns() {
   const { selectedId } = useTenant();
@@ -46,6 +47,8 @@ export default function Campaigns() {
         body: form.body,
         segmentId: form.segmentId || undefined,
         audienceLifecycleStage: form.segmentId ? undefined : form.audienceLifecycleStage || undefined,
+        channel: form.channel as (typeof CHANNELS)[number],
+        voucherCode: form.voucherCode || undefined,
         scheduledAt: form.scheduledAt || undefined,
       });
       setForm({ ...EMPTY });
@@ -115,6 +118,16 @@ export default function Campaigns() {
               <option value="">Tất cả contact</option>
               {LIFECYCLE_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
+          </label>
+          <label>
+            Kênh gửi
+            <select value={form.channel} onChange={(e) => set("channel", e.target.value)}>
+              {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label>
+            Voucher / offer code (tuỳ chọn) <span className="muted small">— chèn vào nội dung</span>
+            <input value={form.voucherCode} onChange={(e) => set("voucherCode", e.target.value)} placeholder="vd: URBOX50" />
           </label>
           <label>
             Lịch gửi (tuỳ chọn)

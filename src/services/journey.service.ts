@@ -1,6 +1,6 @@
 import { journeyRepository } from "../core/journeys/journey.repository.js";
 import { getSegment, resolveMembers } from "./segment.service.js";
-import { filterSendable } from "../core/compliance/policy.js";
+import { deliver } from "../deliver/delivery.service.js";
 import { findTemplate } from "../core/campaigns/templates.js";
 import type { Journey, JourneyInput, JourneyRunSummary } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
@@ -22,25 +22,37 @@ export async function runJourney(tenantId: string, journeyId: string): Promise<J
 
   const segment = journey.segmentId ? await getSegment(tenantId, journey.segmentId) : null;
   const members = segment ? await resolveMembers(tenantId, segment) : [];
-  const emails = members.map((m) => m.email);
 
   const steps: JourneyRunSummary["steps"] = [];
   for (let i = 0; i < journey.steps.length; i++) {
     const step = journey.steps[i];
     if (step.type === "send") {
       const channel = step.channel ?? "email";
-      const { sendable } = await filterSendable(tenantId, emails, channel);
-      const tmpl = step.templateId ? findTemplate(step.templateId)?.name ?? step.templateId : "(không template)";
-      steps.push({ index: i, type: "send", detail: `Gửi "${tmpl}" qua ${channel}`, count: sendable.length });
+      const template = step.templateId ? findTemplate(step.templateId) : undefined;
+      const tmplName = template?.name ?? step.templateId ?? "(không template)";
+      let sent = 0;
+      for (const m of members) {
+        const body = (template?.body ?? "").replaceAll("{{firstName}}", m.firstName ?? "bạn");
+        const result = await deliver({
+          tenantId,
+          to: m.email,
+          channel,
+          subject: template?.subject,
+          body,
+          journeyId: journey.id,
+        });
+        if (result.status === "sent") sent += 1;
+      }
+      steps.push({ index: i, type: "send", detail: `Gửi "${tmplName}" qua ${channel}`, count: sent });
     } else if (step.type === "wait") {
-      steps.push({ index: i, type: "wait", detail: `Chờ ${step.waitHours ?? 0}h (mô phỏng)`, count: emails.length });
+      steps.push({ index: i, type: "wait", detail: `Chờ ${step.waitHours ?? 0}h (mô phỏng)`, count: members.length });
     } else {
-      steps.push({ index: i, type: "exit", detail: "Kết thúc journey", count: emails.length });
+      steps.push({ index: i, type: "exit", detail: "Kết thúc journey", count: members.length });
       break;
     }
   }
 
-  const summary: JourneyRunSummary = { enrolled: emails.length, steps };
-  logger.info("Running journey (simulated)", { tenantId, journeyId, enrolled: emails.length });
+  const summary: JourneyRunSummary = { enrolled: members.length, steps };
+  logger.info("Running journey (simulated)", { tenantId, journeyId, enrolled: members.length });
   return journeyRepository.recordRun(tenantId, journeyId, summary);
 }

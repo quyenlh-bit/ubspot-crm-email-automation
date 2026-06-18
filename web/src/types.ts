@@ -60,7 +60,10 @@ export interface Campaign {
   templateId?: string | null;
   subject: string;
   body: string;
+  segmentId?: string | null;
   audienceLifecycleStage?: string | null;
+  channel?: MessageChannel;
+  voucherCode?: string | null;
   scheduledAt?: string | null;
   status: CampaignStatus;
   recipientCount?: number | null;
@@ -83,6 +86,8 @@ export interface CampaignInput {
   body: string;
   segmentId?: string;
   audienceLifecycleStage?: string;
+  channel?: MessageChannel;
+  voucherCode?: string;
   scheduledAt?: string;
 }
 

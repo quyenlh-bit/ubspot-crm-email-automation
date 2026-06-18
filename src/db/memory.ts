@@ -9,10 +9,12 @@ import type {
   Contact,
   ContactConsent,
   ContactInput,
+  EventInput,
   Journey,
   JourneyInput,
   JourneyRunSummary,
   MessageChannelType,
+  MessageEvent,
   Segment,
   SegmentInput,
   SuppressionEntry,
@@ -182,6 +184,8 @@ class InMemoryCampaignRepository {
       body: input.body,
       segmentId: input.segmentId ?? null,
       audienceLifecycleStage: input.audienceLifecycleStage ?? null,
+      channel: input.channel ?? "email",
+      voucherCode: input.voucherCode ?? null,
       scheduledAt: input.scheduledAt ?? null,
       status: input.scheduledAt ? "scheduled" : "draft",
       recipientCount: null,
@@ -335,6 +339,34 @@ class InMemoryJourneyRepository {
     return j;
   }
 }
+
+const eventRows: MessageEvent[] = [];
+export const memEvents = {
+  async record(tenantId: string, input: EventInput): Promise<MessageEvent> {
+    const evt: MessageEvent = {
+      id: randomUUID(),
+      tenantId,
+      type: input.type,
+      email: input.email,
+      channel: input.channel ?? null,
+      campaignId: input.campaignId ?? null,
+      journeyId: input.journeyId ?? null,
+      amount: input.amount ?? null,
+      createdAt: new Date(),
+    };
+    eventRows.push(evt);
+    return evt;
+  },
+  async list(tenantId: string, limit = 500): Promise<MessageEvent[]> {
+    return eventRows
+      .filter((r) => r.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  },
+  async countRecent(tenantId: string, email: string, type: MessageEvent["type"], since: Date): Promise<number> {
+    return eventRows.filter((r) => r.tenantId === tenantId && r.email === email && r.type === type && r.createdAt >= since).length;
+  },
+};
 
 export const memTenants = new InMemoryTenantRepository();
 export const memContacts = new InMemoryContactRepository();

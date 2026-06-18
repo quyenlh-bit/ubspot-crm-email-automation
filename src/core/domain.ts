@@ -85,6 +85,10 @@ export interface Campaign {
   segmentId?: string | null;
   /** Target audience: contacts with this lifecycle stage. Null/empty = everyone. */
   audienceLifecycleStage?: string | null;
+  /** Delivery channel (default email). */
+  channel: MessageChannelType;
+  /** Optional voucher/offer code injected into the message (UrBox-specific). */
+  voucherCode?: string | null;
   scheduledAt?: Date | null;
   status: CampaignStatus;
   /** Number of contacts the campaign was sent to (set once sent). */
@@ -104,6 +108,8 @@ export interface CampaignInput {
   segmentId?: string | null;
   audienceLifecycleStage?: string | null;
   scheduledAt?: Date | null;
+  channel?: MessageChannelType;
+  voucherCode?: string | null;
 }
 
 /** A reusable audience. Static = explicit emails; dynamic = rule-evaluated live. */
@@ -164,6 +170,31 @@ export interface JourneyInput {
   name: string;
   segmentId: string | null;
   steps: JourneyStep[];
+}
+
+/** Tracked events for analytics & attribution (MEASURE layer). */
+export type EventType = "message.sent" | "message.open" | "message.click" | "conversion";
+
+export interface MessageEvent {
+  id: string;
+  tenantId: string;
+  type: EventType;
+  email: string;
+  channel?: MessageChannelType | null;
+  campaignId?: string | null;
+  journeyId?: string | null;
+  /** Conversion value (e.g. redemption/transaction amount) — attribution. */
+  amount?: number | null;
+  createdAt: Date;
+}
+
+export interface EventInput {
+  type: EventType;
+  email: string;
+  channel?: MessageChannelType | null;
+  campaignId?: string | null;
+  journeyId?: string | null;
+  amount?: number | null;
 }
 
 /** Delivery channels a message can go out on. Zalo ZNS is mandatory for VN. */
