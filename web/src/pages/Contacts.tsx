@@ -1,7 +1,8 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useTenant } from "../TenantContext";
+import type { DuplicateGroup } from "../types";
 import { useAsync } from "../useAsync";
-import { createContact, listContacts } from "../api";
+import { createContact, getDuplicates, listContacts, mergeContacts } from "../api";
 import { Card, EmptyState, ErrorBox, Loading, Pill } from "../components/ui";
 
 const EMPTY = { email: "", firstName: "", lastName: "", phone: "", lifecycleStage: "" };
@@ -9,6 +10,7 @@ const EMPTY = { email: "", firstName: "", lastName: "", phone: "", lifecycleStag
 export default function Contacts() {
   const { selectedId } = useTenant();
   const contacts = useAsync(() => listContacts(selectedId!), [selectedId]);
+  const duplicates = useAsync(() => getDuplicates(selectedId!), [selectedId]);
   const [form, setForm] = useState({ ...EMPTY });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export default function Contacts() {
       await createContact(selectedId!, payload);
       setForm({ ...EMPTY });
       contacts.reload();
+      duplicates.reload();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -37,6 +40,20 @@ export default function Contacts() {
 
   const set = (k: keyof typeof EMPTY) => (e: ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  async function mergeGroup(g: DuplicateGroup) {
+    setFormError(null);
+    try {
+      const primary = g.contacts[0];
+      for (const sec of g.contacts.slice(1)) {
+        await mergeContacts(selectedId!, primary.id, sec.id);
+      }
+      contacts.reload();
+      duplicates.reload();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   return (
     <>
@@ -56,6 +73,18 @@ export default function Contacts() {
         </form>
         {formError && <ErrorBox message={formError} />}
       </Card>
+
+      {duplicates.data && duplicates.data.length > 0 && (
+        <Card title={`Trùng lặp theo SĐT (${duplicates.data.length}) — identity resolution`}>
+          {duplicates.data.map((g, i) => (
+            <div key={i} className="step-row" style={{ marginBottom: 8 }}>
+              <span className="mono small">{g.phone}</span>
+              <span className="muted small">{g.contacts.map((c) => c.email).join(", ")}</span>
+              <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => mergeGroup(g)}>Gộp vào dòng đầu</button>
+            </div>
+          ))}
+        </Card>
+      )}
 
       <Card title={`Danh sách (${contacts.data?.length ?? 0})`} action={<button className="btn ghost" onClick={contacts.reload}>Tải lại</button>}>
         {contacts.loading && <Loading />}

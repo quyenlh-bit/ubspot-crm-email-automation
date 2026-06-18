@@ -16,6 +16,8 @@ export interface ContactRepository {
   list(tenantId: string, limit?: number): Promise<Contact[]>;
   /** Record the id this contact has in an external provider. */
   setExternalId(tenantId: string, id: string, provider: string, externalId: string): Promise<void>;
+  /** Remove a contact (used by identity-resolution merge). */
+  delete(tenantId: string, id: string): Promise<void>;
 }
 
 interface ContactRow {
@@ -152,6 +154,10 @@ export class PostgresContactRepository implements ContactRepository {
        where tenant_id = $1 and id = $2`,
       [tenantId, id, `{${provider}}`, externalId],
     );
+  }
+
+  async delete(tenantId: string, id: string): Promise<void> {
+    await query(`delete from contacts where tenant_id = $1 and id = $2`, [tenantId, id]);
   }
 }
 

@@ -8,6 +8,7 @@ import { upsertAndSyncContact } from "../services/contact.service.js";
 import { runOnboardingWorkflow } from "../services/automation.service.js";
 import { createCampaign, listCampaigns, sendCampaign, simulateEngagement } from "../services/campaign.service.js";
 import { getAttribution, getFunnel } from "../services/analytics.service.js";
+import { findDuplicates, mergeContacts } from "../services/identity.service.js";
 import * as eventRepo from "../core/events/event.repository.js";
 import { createSegment, listSegmentsWithCount, resolveMembers } from "../services/segment.service.js";
 import { segmentRepository } from "../core/segments/segment.repository.js";
@@ -145,6 +146,21 @@ apiRouter.get(
   wrap(async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 100, 500);
     res.json(await contactRepository.list(String(req.params.tenantId), limit));
+  }),
+);
+
+apiRouter.get(
+  "/tenants/:tenantId/duplicates",
+  wrap(async (req, res) => res.json(await findDuplicates(String(req.params.tenantId)))),
+);
+
+const MergeContacts = z.object({ primaryId: z.string().min(1), secondaryId: z.string().min(1) });
+apiRouter.post(
+  "/tenants/:tenantId/contacts/merge",
+  wrap(async (req, res) => {
+    const parsed = MergeContacts.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    res.json(await mergeContacts(String(req.params.tenantId), parsed.data.primaryId, parsed.data.secondaryId));
   }),
 );
 

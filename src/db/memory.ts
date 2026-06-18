@@ -119,6 +119,10 @@ class InMemoryContactRepository implements ContactRepository {
       c.updatedAt = new Date();
     }
   }
+  async delete(tenantId: string, id: string): Promise<void> {
+    const i = this.rows.findIndex((r) => r.tenantId === tenantId && r.id === id);
+    if (i >= 0) this.rows.splice(i, 1);
+  }
 }
 
 class InMemoryConnectionRepository {

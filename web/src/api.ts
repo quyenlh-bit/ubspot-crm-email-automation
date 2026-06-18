@@ -5,6 +5,7 @@ import type {
   ChannelConnection,
   Contact,
   ContactConsent,
+  DuplicateGroup,
   EmailTemplate,
   Journey,
   JourneyInput,
@@ -88,6 +89,13 @@ export const createContact = (tenantId: string, input: Partial<Contact>) =>
   http<Contact>(`/tenants/${tenantId}/contacts`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+export const getDuplicates = (tenantId: string) =>
+  http<DuplicateGroup[]>(`/tenants/${tenantId}/duplicates`);
+export const mergeContacts = (tenantId: string, primaryId: string, secondaryId: string) =>
+  http<Contact>(`/tenants/${tenantId}/contacts/merge`, {
+    method: "POST",
+    body: JSON.stringify({ primaryId, secondaryId }),
   });
 
 // Sync log

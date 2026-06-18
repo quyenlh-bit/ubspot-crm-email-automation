@@ -143,6 +143,11 @@ export interface JourneyInput {
   steps: JourneyStep[];
 }
 
+export interface DuplicateGroup {
+  phone: string;
+  contacts: Contact[];
+}
+
 export interface Funnel {
   sent: number;
   open: number;
