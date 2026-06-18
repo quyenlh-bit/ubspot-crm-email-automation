@@ -1,4 +1,5 @@
 import type {
+  Analytics,
   Campaign,
   CampaignInput,
   ChannelConnection,
@@ -117,6 +118,15 @@ export const createCampaign = (tenantId: string, input: CampaignInput) =>
   });
 export const sendCampaign = (tenantId: string, campaignId: string) =>
   http<Campaign>(`/tenants/${tenantId}/campaigns/${campaignId}/send`, { method: "POST" });
+export const simulateEngagement = (tenantId: string, campaignId: string) =>
+  http<{ open: number; click: number; conversion: number }>(
+    `/tenants/${tenantId}/campaigns/${campaignId}/simulate-engagement`,
+    { method: "POST" },
+  );
+
+// Analytics (MEASURE)
+export const getAnalytics = (tenantId: string) =>
+  http<Analytics>(`/tenants/${tenantId}/analytics`);
 
 // Compliance — consent & suppression
 export const listConsents = (tenantId: string) =>

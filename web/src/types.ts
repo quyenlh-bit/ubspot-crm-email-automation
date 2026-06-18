@@ -143,6 +143,31 @@ export interface JourneyInput {
   steps: JourneyStep[];
 }
 
+export interface Funnel {
+  sent: number;
+  open: number;
+  click: number;
+  conversion: number;
+}
+
+export interface AttributionRow {
+  campaignId: string;
+  name: string;
+  conversions: number;
+  revenue: number;
+}
+
+export interface Attribution {
+  totalRevenue: number;
+  totalConversions: number;
+  campaigns: AttributionRow[];
+}
+
+export interface Analytics {
+  funnel: Funnel;
+  attribution: Attribution;
+}
+
 export type MessageChannel = "email" | "sms" | "zalo";
 
 export interface ContactConsent {

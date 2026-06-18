@@ -1,6 +1,7 @@
 import { campaignRepository } from "../core/campaigns/campaign.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
 import { deliver } from "../deliver/delivery.service.js";
+import * as events from "../core/events/event.repository.js";
 import { getSegment, resolveMembers } from "./segment.service.js";
 import type { Campaign, CampaignInput } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
@@ -59,4 +60,47 @@ export async function sendCampaign(tenantId: string, campaignId: string): Promis
   logger.info("Campaign delivered (simulated)", { tenantId, campaignId, sent, of: recipients.length });
 
   return campaignRepository.markSent(tenantId, campaignId, sent);
+}
+
+/**
+ * DEV/demo helper: simulate downstream engagement for a campaign by recording
+ * open/click/conversion events for a fraction of its audience, so the MEASURE
+ * funnel and attribution have data without a live tracking pixel. Conversions
+ * carry a synthetic redemption amount (VND) attributed to this campaign.
+ */
+export async function simulateEngagement(
+  tenantId: string,
+  campaignId: string,
+): Promise<{ open: number; click: number; conversion: number }> {
+  const campaign = await campaignRepository.findById(tenantId, campaignId);
+  if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
+
+  const recipients = await resolveRecipients(tenantId, campaign);
+  const n = recipients.length;
+  const opens = Math.ceil(n * 0.7);
+  const clicks = Math.ceil(n * 0.35);
+  const conversions = Math.ceil(n * 0.15);
+  let open = 0;
+  let click = 0;
+  let conversion = 0;
+
+  for (let i = 0; i < n; i++) {
+    const email = recipients[i].email;
+    const base = { email, channel: campaign.channel, campaignId };
+    if (i < opens) {
+      await events.record(tenantId, { type: "message.open", ...base });
+      open += 1;
+    }
+    if (i < clicks) {
+      await events.record(tenantId, { type: "message.click", ...base });
+      click += 1;
+    }
+    if (i < conversions) {
+      await events.record(tenantId, { type: "conversion", ...base, amount: 200_000 + i * 50_000 });
+      conversion += 1;
+    }
+  }
+
+  logger.info("Simulated engagement", { tenantId, campaignId, open, click, conversion });
+  return { open, click, conversion };
 }

@@ -1,6 +1,6 @@
 import { useTenant } from "../TenantContext";
 import { useAsync } from "../useAsync";
-import { listCampaigns, listContacts, listSyncLog } from "../api";
+import { getAnalytics, listCampaigns, listContacts, listSyncLog } from "../api";
 import { Card, EmptyState, ErrorBox, Loading, StatusBadge } from "../components/ui";
 import { BarChart, Donut, Sparkline } from "../components/charts";
 import {
@@ -9,7 +9,35 @@ import {
   IconContacts,
   IconSyncLog,
 } from "../components/icons";
-import type { Campaign, Contact } from "../types";
+import type { Campaign, Contact, Funnel } from "../types";
+
+const formatVnd = (n: number) => new Intl.NumberFormat("vi-VN").format(n) + "₫";
+
+function FunnelView({ funnel }: { funnel: Funnel }) {
+  const stages = [
+    { label: "Sent", value: funnel.sent, color: "#6d5ef0" },
+    { label: "Open", value: funnel.open, color: "#8b5cf6" },
+    { label: "Click", value: funnel.click, color: "#0ea5e9" },
+    { label: "Conversion", value: funnel.conversion, color: "#22c55e" },
+  ];
+  const max = Math.max(1, funnel.sent);
+  return (
+    <div className="funnel">
+      {stages.map((s) => {
+        const rate = funnel.sent ? Math.round((s.value / funnel.sent) * 100) : 0;
+        return (
+          <div className="funnel-row" key={s.label}>
+            <span className="funnel-label">{s.label}</span>
+            <div className="funnel-track">
+              <div className="funnel-bar" style={{ width: `${(s.value / max) * 100}%`, background: s.color }} />
+            </div>
+            <span className="funnel-val">{s.value}<span className="muted small"> · {rate}%</span></span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const LIFECYCLE_ORDER = ["lead", "subscriber", "customer", "opportunity", "other"];
 const STATUS_COLORS: Record<string, string> = {
@@ -48,6 +76,7 @@ export default function Dashboard() {
   const contacts = useAsync(() => listContacts(selectedId!), [selectedId]);
   const campaigns = useAsync(() => listCampaigns(selectedId!), [selectedId]);
   const log = useAsync(() => listSyncLog(selectedId!), [selectedId]);
+  const analytics = useAsync(() => getAnalytics(selectedId!), [selectedId]);
 
   if (!selectedId) {
     return <EmptyState>Chưa chọn tenant. Tạo hoặc chọn một tenant ở góc trên bên phải.</EmptyState>;
@@ -104,6 +133,40 @@ export default function Dashboard() {
           {campaigns.error && <ErrorBox message={campaigns.error} />}
           {!campaigns.loading && !campaigns.error && (
             <Donut data={campaignDonut(campaignList)} centerLabel="campaigns" />
+          )}
+        </Card>
+      </div>
+
+      <div className="grid-2">
+        <Card title="Email funnel">
+          {analytics.loading && <Loading />}
+          {analytics.error && <ErrorBox message={analytics.error} />}
+          {analytics.data && <FunnelView funnel={analytics.data.funnel} />}
+        </Card>
+        <Card title="Attribution / ROI">
+          {analytics.data && (
+            <>
+              <div className="attr-total">
+                <div className="attr-value">{formatVnd(analytics.data.attribution.totalRevenue)}</div>
+                <div className="muted small">doanh thu quy cho marketing · {analytics.data.attribution.totalConversions} chuyển đổi</div>
+              </div>
+              {analytics.data.attribution.campaigns.length === 0
+                ? <EmptyState>Chưa có chuyển đổi. Gửi campaign rồi bấm "Mô phỏng tương tác" ở trang Campaigns.</EmptyState>
+                : (
+                  <table className="table">
+                    <thead><tr><th>Campaign</th><th>Chuyển đổi</th><th>Doanh thu</th></tr></thead>
+                    <tbody>
+                      {analytics.data.attribution.campaigns.map((c) => (
+                        <tr key={c.campaignId}>
+                          <td>{c.name}</td>
+                          <td>{c.conversions}</td>
+                          <td><strong>{formatVnd(c.revenue)}</strong></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+            </>
           )}
         </Card>
       </div>

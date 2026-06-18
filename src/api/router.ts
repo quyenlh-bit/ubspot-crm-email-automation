@@ -6,7 +6,9 @@ import { contactRepository } from "../core/contacts/contact.repository.js";
 import * as syncLog from "../core/sync/sync-log.repository.js";
 import { upsertAndSyncContact } from "../services/contact.service.js";
 import { runOnboardingWorkflow } from "../services/automation.service.js";
-import { createCampaign, listCampaigns, sendCampaign } from "../services/campaign.service.js";
+import { createCampaign, listCampaigns, sendCampaign, simulateEngagement } from "../services/campaign.service.js";
+import { getAttribution, getFunnel } from "../services/analytics.service.js";
+import * as eventRepo from "../core/events/event.repository.js";
 import { createSegment, listSegmentsWithCount, resolveMembers } from "../services/segment.service.js";
 import { segmentRepository } from "../core/segments/segment.repository.js";
 import { createJourney, listJourneys, runJourney } from "../services/journey.service.js";
@@ -236,6 +238,42 @@ apiRouter.post(
       String(req.params.campaignId),
     );
     res.json(campaign);
+  }),
+);
+
+apiRouter.post(
+  "/tenants/:tenantId/campaigns/:campaignId/simulate-engagement",
+  wrap(async (req, res) => {
+    const result = await simulateEngagement(String(req.params.tenantId), String(req.params.campaignId));
+    res.json(result);
+  }),
+);
+
+// ── Measure: events & analytics (MEASURE) ───────────────────────────────────
+
+const RecordEvent = z.object({
+  type: z.enum(["message.sent", "message.open", "message.click", "conversion"]),
+  email: z.string().email(),
+  channel: z.enum(MESSAGE_CHANNELS as [MessageChannelType, ...MessageChannelType[]]).optional(),
+  campaignId: z.string().optional(),
+  journeyId: z.string().optional(),
+  amount: z.number().optional(),
+});
+apiRouter.post(
+  "/tenants/:tenantId/events",
+  wrap(async (req, res) => {
+    const parsed = RecordEvent.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    res.status(201).json(await eventRepo.record(String(req.params.tenantId), parsed.data));
+  }),
+);
+
+apiRouter.get(
+  "/tenants/:tenantId/analytics",
+  wrap(async (req, res) => {
+    const tenantId = String(req.params.tenantId);
+    const [funnel, attribution] = await Promise.all([getFunnel(tenantId), getAttribution(tenantId)]);
+    res.json({ funnel, attribution });
   }),
 );
 

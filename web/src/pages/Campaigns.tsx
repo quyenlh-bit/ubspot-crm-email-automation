@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useTenant } from "../TenantContext";
 import { useAsync } from "../useAsync";
-import { createCampaign, getTemplates, listCampaigns, listSegments, sendCampaign } from "../api";
+import { createCampaign, getTemplates, listCampaigns, listSegments, sendCampaign, simulateEngagement } from "../api";
 import { Card, EmptyState, ErrorBox, Loading, StatusBadge } from "../components/ui";
 
 const LIFECYCLE_STAGES = ["lead", "subscriber", "customer", "opportunity", "other"];
@@ -69,6 +69,16 @@ export default function Campaigns() {
       setFormError(err instanceof Error ? err.message : String(err));
     } finally {
       setSendingId(null);
+    }
+  }
+
+  async function simulate(id: string) {
+    setFormError(null);
+    try {
+      await simulateEngagement(selectedId!, id);
+      campaigns.reload();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -172,7 +182,7 @@ export default function Campaigns() {
                   <td><StatusBadge status={c.status} /></td>
                   <td>
                     {c.status === "sent"
-                      ? <span className="muted">✓</span>
+                      ? <button className="btn ghost" onClick={() => simulate(c.id)}>Mô phỏng tương tác</button>
                       : <button className="btn" disabled={sendingId === c.id} onClick={() => send(c.id)}>
                           {sendingId === c.id ? "Đang gửi…" : "Gửi ngay"}
                         </button>}
