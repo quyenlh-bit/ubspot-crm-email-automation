@@ -9,6 +9,8 @@ import { runOnboardingWorkflow } from "../services/automation.service.js";
 import { createCampaign, listCampaigns, sendCampaign, simulateEngagement } from "../services/campaign.service.js";
 import { getAttribution, getFunnel } from "../services/analytics.service.js";
 import { findDuplicates, mergeContacts } from "../services/identity.service.js";
+import { apiKeyRepository } from "../core/auth/apikey.repository.js";
+import { authMiddleware } from "./auth.js";
 import * as eventRepo from "../core/events/event.repository.js";
 import { createSegment, listSegmentsWithCount, resolveMembers } from "../services/segment.service.js";
 import { segmentRepository } from "../core/segments/segment.repository.js";
@@ -29,6 +31,9 @@ import type { ChannelConnection, ChannelProvider } from "../core/domain.js";
  * in full — see maskConfig.
  */
 export const apiRouter = Router();
+
+// RBAC gate (no-op unless REQUIRE_AUTH=true).
+apiRouter.use(authMiddleware);
 
 /** Wrap an async handler so rejections become a 500 instead of a hung request. */
 const wrap =
@@ -88,6 +93,29 @@ apiRouter.get(
       connections: connections.length,
       syncErrors: log.filter((r) => r.status === "error").length,
     });
+  }),
+);
+
+// ── API keys (RBAC) ─────────────────────────────────────────────────────────
+
+apiRouter.get(
+  "/tenants/:tenantId/api-keys",
+  wrap(async (req, res) => {
+    const keys = await apiKeyRepository.list(String(req.params.tenantId));
+    res.json(keys);
+  }),
+);
+
+const CreateApiKey = z.object({
+  role: z.enum(["admin", "editor", "viewer"]),
+  label: z.string().optional(),
+});
+apiRouter.post(
+  "/tenants/:tenantId/api-keys",
+  wrap(async (req, res) => {
+    const parsed = CreateApiKey.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    res.status(201).json(await apiKeyRepository.create(String(req.params.tenantId), parsed.data.role, parsed.data.label ?? null));
   }),
 );
 

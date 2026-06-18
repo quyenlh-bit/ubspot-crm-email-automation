@@ -6,6 +6,8 @@ import type {
   CampaignInput,
   ChannelConnection,
   ChannelProvider,
+  ApiKey,
+  ApiRole,
   Contact,
   ContactConsent,
   ContactInput,
@@ -372,6 +374,28 @@ export const memEvents = {
   },
 };
 
+const apiKeyRows: ApiKey[] = [];
+export const memApiKeys = {
+  async create(tenantId: string, role: ApiRole, label: string | null): Promise<ApiKey> {
+    const key: ApiKey = {
+      id: randomUUID(),
+      tenantId,
+      key: `uk_${randomUUID().replace(/-/g, "")}`,
+      role,
+      label,
+      createdAt: new Date(),
+    };
+    apiKeyRows.push(key);
+    return key;
+  },
+  async list(tenantId: string): Promise<ApiKey[]> {
+    return apiKeyRows.filter((r) => r.tenantId === tenantId);
+  },
+  async findByKey(key: string): Promise<ApiKey | null> {
+    return apiKeyRows.find((r) => r.key === key) ?? null;
+  },
+};
+
 export const memTenants = new InMemoryTenantRepository();
 export const memContacts = new InMemoryContactRepository();
 export const memConnections = new InMemoryConnectionRepository();
@@ -407,6 +431,9 @@ async function seed() {
     body: "Xin chào {{firstName}},\n\nCảm ơn bạn đã tham gia.\n\n— Đội ngũ UrBox",
     audienceLifecycleStage: "lead",
   });
+
+  // Seed a fixed admin API key so RBAC is usable when REQUIRE_AUTH=true.
+  apiKeyRows.push({ id: randomUUID(), tenantId: tenant.id, key: "demo-admin-key", role: "admin", label: "Demo admin", createdAt: new Date() });
 
   // Demo contacts opted in to email + zalo (sms left off to show partial consent).
   for (const email of ["an.nguyen@example.com", "binh.tran@example.com", "chi.le@example.com"]) {

@@ -23,6 +23,9 @@ const schema = z.object({
   // isolated schema (e.g. `ubspot_crm`) to run safely inside a shared database
   // without touching its public tables. Applied via search_path in db/pool.ts.
   DB_SCHEMA: z.string().min(1).default("public"),
+  // RBAC gate. When "true", /api requires an x-api-key header (role-enforced).
+  // Default "false" keeps the local/demo UI open (no login wired yet).
+  REQUIRE_AUTH: z.enum(["true", "false"]).default("false"),
   // Public base URL the platform is reachable at; webhook signatures from some
   // providers (e.g. HubSpot v3) are computed over the full request URL.
   PUBLIC_BASE_URL: z.string().url().default("http://localhost:3000"),

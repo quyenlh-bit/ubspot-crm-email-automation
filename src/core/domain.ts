@@ -172,6 +172,18 @@ export interface JourneyInput {
   steps: JourneyStep[];
 }
 
+/** Access role for an API key (RBAC). admin > editor > viewer. */
+export type ApiRole = "admin" | "editor" | "viewer";
+
+export interface ApiKey {
+  id: string;
+  tenantId: string;
+  key: string;
+  role: ApiRole;
+  label: string | null;
+  createdAt: Date;
+}
+
 /** Tracked events for analytics & attribution (MEASURE layer). */
 export type EventType = "message.sent" | "message.open" | "message.click" | "conversion";
 
