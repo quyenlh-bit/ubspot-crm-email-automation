@@ -134,7 +134,14 @@ export interface WorkflowTrigger {
   value?: string | null;
 }
 
-export type WorkflowNodeType = "send" | "wait" | "condition" | "update_contact" | "webhook" | "exit";
+export type WorkflowNodeType =
+  | "send"
+  | "wait"
+  | "condition"
+  | "ab_split"
+  | "update_contact"
+  | "webhook"
+  | "exit";
 export interface WorkflowCondition {
   kind: "lifecycle_is" | "opened" | "clicked";
   value?: string | null;
@@ -149,14 +156,16 @@ export interface WorkflowNode {
   voucherCode?: string | null;
   waitHours?: number | null;
   condition?: WorkflowCondition | null;
+  splitPercent?: number | null;
   setLifecycleStage?: string | null;
   webhookUrl?: string | null;
 }
+export type WorkflowBranch = "yes" | "no" | "a" | "b";
 export interface WorkflowEdge {
   id: string;
   source: string;
   target: string;
-  branch?: "yes" | "no" | null;
+  branch?: WorkflowBranch | null;
 }
 
 export interface Journey {

@@ -1,6 +1,8 @@
 import { tenantRepository } from "../core/tenants/tenant.repository.js";
 import { campaignRepository } from "../core/campaigns/campaign.repository.js";
+import { journeyRepository } from "../core/journeys/journey.repository.js";
 import { sendCampaign } from "../services/campaign.service.js";
+import { processActiveJourney } from "../services/journey.service.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -33,6 +35,16 @@ async function tick(): Promise<void> {
           await sendCampaign(t.id, c.id);
         } catch (err) {
           logger.error("Scheduler dispatch failed", { campaignId: c.id, err: String(err) });
+        }
+      }
+
+      // Journey worker: auto-enrol new members into active workflows.
+      const journeys = await journeyRepository.list(t.id);
+      for (const j of journeys.filter((j) => j.status === "active")) {
+        try {
+          await processActiveJourney(t.id, j);
+        } catch (err) {
+          logger.error("Journey worker failed", { journeyId: j.id, err: String(err) });
         }
       }
     }

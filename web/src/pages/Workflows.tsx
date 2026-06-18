@@ -31,6 +31,7 @@ const NODE_META: Record<WorkflowNodeType | "trigger", { label: string; emoji: st
   send: { label: "Send", emoji: "✉️" },
   wait: { label: "Wait", emoji: "⏱️" },
   condition: { label: "Condition", emoji: "◇" },
+  ab_split: { label: "A/B split", emoji: "⤨" },
   update_contact: { label: "Update", emoji: "✎" },
   webhook: { label: "Webhook", emoji: "🔗" },
   exit: { label: "Exit", emoji: "⏹" },
@@ -41,6 +42,7 @@ function nodeSummary(d: WorkflowNode): string {
     case "send": return `${d.templateId || "?"} · ${d.channel || "email"}`;
     case "wait": return `${d.waitHours ?? 0}h`;
     case "condition": return `${d.condition?.kind ?? "?"}${d.condition?.value ? `=${d.condition.value}` : ""}`;
+    case "ab_split": return `${d.splitPercent ?? 50}% A / ${100 - (d.splitPercent ?? 50)}% B`;
     case "update_contact": return `lifecycle → ${d.setLifecycleStage ?? "?"}`;
     case "webhook": return d.webhookUrl || "—";
     default: return "";
@@ -59,6 +61,11 @@ function CanvasNode({ data, selected }: NodeProps<WorkflowNode & { count?: numbe
         <>
           <Handle id="yes" type="source" position={Position.Bottom} style={{ left: "28%" }} />
           <Handle id="no" type="source" position={Position.Bottom} style={{ left: "72%" }} />
+        </>
+      ) : data.type === "ab_split" ? (
+        <>
+          <Handle id="a" type="source" position={Position.Bottom} style={{ left: "28%" }} />
+          <Handle id="b" type="source" position={Position.Bottom} style={{ left: "72%" }} />
         </>
       ) : data.type !== "exit" ? (
         <Handle type="source" position={Position.Bottom} />
@@ -150,6 +157,7 @@ export default function Workflows() {
     if (type === "send") { base.channel = "email"; base.templateId = "welcome"; }
     if (type === "wait") base.waitHours = 24;
     if (type === "condition") base.condition = { kind: "opened" };
+    if (type === "ab_split") base.splitPercent = 50;
     if (type === "update_contact") base.setLifecycleStage = "customer";
     setRfNodes((nds) => [...nds, { id, type: "wf", position: base.position, data: base }]);
   }
@@ -239,7 +247,7 @@ export default function Workflows() {
       <div className="wf-layout">
         <aside className="wf-side">
           <div className="wf-side-title">Thêm node</div>
-          {(["send", "wait", "condition", "update_contact", "webhook", "exit"] as WorkflowNodeType[]).map((t) => (
+          {(["send", "wait", "condition", "ab_split", "update_contact", "webhook", "exit"] as WorkflowNodeType[]).map((t) => (
             <button key={t} className="btn ghost wf-add" onClick={() => addNode(t)}>{NODE_META[t].emoji} {NODE_META[t].label}</button>
           ))}
           <div className="wf-side-title" style={{ marginTop: 16 }}>Workflows</div>
@@ -282,6 +290,14 @@ export default function Workflows() {
                     <label className="wf-field">Giá trị<input value={selData.condition?.value ?? ""} onChange={(e) => patchNode({ condition: { kind: "lifecycle_is", value: e.target.value } })} placeholder="customer" /></label>
                   )}
                   <p className="muted small">Nhánh: chấm trái = Yes, chấm phải = No.</p>
+                </>
+              )}
+              {selData.type === "ab_split" && (
+                <>
+                  <label className="wf-field">% vào nhánh A
+                    <input type="number" min={0} max={100} value={selData.splitPercent ?? 50} onChange={(e) => patchNode({ splitPercent: Number(e.target.value) })} />
+                  </label>
+                  <p className="muted small">Nhánh: chấm trái = A, chấm phải = B (chia theo email, ổn định).</p>
                 </>
               )}
               {selData.type === "update_contact" && (

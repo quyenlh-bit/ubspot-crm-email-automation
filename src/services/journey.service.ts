@@ -3,6 +3,7 @@ import { getSegment, resolveMembers } from "./segment.service.js";
 import { deliver } from "../deliver/delivery.service.js";
 import { findTemplate } from "../core/campaigns/templates.js";
 import * as events from "../core/events/event.repository.js";
+import * as enrollment from "../core/journeys/enrollment.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
 import type {
   Contact,
@@ -39,18 +40,36 @@ async function audienceOf(tenantId: string, journey: Journey): Promise<Contact[]
 export async function runJourney(tenantId: string, journeyId: string): Promise<Journey> {
   const journey = await journeyRepository.findById(tenantId, journeyId);
   if (!journey) throw new Error(`Journey ${journeyId} not found`);
+  const members = await audienceOf(tenantId, journey);
   const summary = journey.nodes.length > 0
-    ? await runGraph(tenantId, journey)
-    : await runLinear(tenantId, journey);
+    ? await runGraph(tenantId, journey, members)
+    : await runLinear(tenantId, journey, members);
   logger.info("Ran journey (simulated)", { tenantId, journeyId, enrolled: summary.enrolled });
   return journeyRepository.recordRun(tenantId, journeyId, summary);
 }
 
+/**
+ * Journey worker step: enrol only NEW audience members (not seen before) and run
+ * them through the graph once. Called on a cadence by the scheduler for active
+ * journeys, so a workflow auto-runs as contacts enter its trigger segment.
+ */
+export async function processActiveJourney(tenantId: string, journey: Journey): Promise<number> {
+  if (journey.nodes.length === 0) return 0;
+  const audience = await audienceOf(tenantId, journey);
+  const fresh: Contact[] = [];
+  for (const m of audience) {
+    if (!(await enrollment.isEnrolled(journey.id, m.email))) fresh.push(m);
+  }
+  if (fresh.length === 0) return 0;
+  await runGraph(tenantId, journey, fresh);
+  for (const m of fresh) await enrollment.enroll(journey.id, m.email);
+  logger.info("Journey worker enrolled members", { tenantId, journeyId: journey.id, count: fresh.length });
+  return fresh.length;
+}
+
 // ── v2 graph engine ─────────────────────────────────────────────────────────
 
-async function runGraph(tenantId: string, journey: Journey): Promise<JourneyRunSummary> {
-  const members = await audienceOf(tenantId, journey);
-
+async function runGraph(tenantId: string, journey: Journey, members: Contact[]): Promise<JourneyRunSummary> {
   // Engagement sets for condition predicates.
   const evts = await events.list(tenantId, 5000);
   const openSet = new Set(evts.filter((e) => e.type === "message.open").map((e) => e.email));
@@ -89,6 +108,9 @@ async function runGraph(tenantId: string, journey: Journey): Promise<JourneyRunS
         const result = evalCondition(member, node.condition ?? null, openSet, clickSet);
         const branch = result ? "yes" : "no";
         currentId = outEdges(node.id).find((e) => e.branch === branch)?.target;
+      } else if (node.type === "ab_split") {
+        const branch = hashPercent(member.email) < (node.splitPercent ?? 50) ? "a" : "b";
+        currentId = outEdges(node.id).find((e) => e.branch === branch)?.target;
       } else {
         // wait / update_contact / webhook: count-only in a simulated run.
         currentId = outEdges(node.id)[0]?.target;
@@ -125,6 +147,13 @@ function evalCondition(
   }
 }
 
+/** Deterministic 0–99 bucket from an email, for stable A/B assignment. */
+function hashPercent(email: string): number {
+  let sum = 0;
+  for (const ch of email) sum += ch.charCodeAt(0);
+  return sum % 100;
+}
+
 function describeNode(n: WorkflowNode): string {
   switch (n.type) {
     case "send":
@@ -133,6 +162,8 @@ function describeNode(n: WorkflowNode): string {
       return `Chờ ${n.waitHours ?? 0}h (mô phỏng)`;
     case "condition":
       return `Điều kiện: ${n.condition?.kind ?? "?"}${n.condition?.value ? ` = ${n.condition.value}` : ""}`;
+    case "ab_split":
+      return `A/B: ${n.splitPercent ?? 50}% A / ${100 - (n.splitPercent ?? 50)}% B`;
     case "update_contact":
       return `Cập nhật lifecycle → ${n.setLifecycleStage ?? "?"}`;
     case "webhook":
@@ -146,8 +177,7 @@ function describeNode(n: WorkflowNode): string {
 
 // ── v1 legacy linear engine (kept for backward compatibility) ────────────────
 
-async function runLinear(tenantId: string, journey: Journey): Promise<JourneyRunSummary> {
-  const members = await audienceOf(tenantId, journey);
+async function runLinear(tenantId: string, journey: Journey, members: Contact[]): Promise<JourneyRunSummary> {
   const steps: JourneyRunSummary["steps"] = [];
   for (let i = 0; i < journey.steps.length; i++) {
     const step = journey.steps[i];

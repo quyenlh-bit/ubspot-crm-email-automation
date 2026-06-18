@@ -417,6 +417,21 @@ export const memApiKeys = {
   },
 };
 
+const enrollmentRows: { journeyId: string; email: string }[] = [];
+export const memEnrollments = {
+  async isEnrolled(journeyId: string, email: string): Promise<boolean> {
+    return enrollmentRows.some((r) => r.journeyId === journeyId && r.email === email);
+  },
+  async enroll(journeyId: string, email: string): Promise<void> {
+    if (!enrollmentRows.some((r) => r.journeyId === journeyId && r.email === email)) {
+      enrollmentRows.push({ journeyId, email });
+    }
+  },
+  async count(journeyId: string): Promise<number> {
+    return enrollmentRows.filter((r) => r.journeyId === journeyId).length;
+  },
+};
+
 export const memTenants = new InMemoryTenantRepository();
 export const memContacts = new InMemoryContactRepository();
 export const memConnections = new InMemoryConnectionRepository();

@@ -258,6 +258,7 @@ input:focus, select:focus, textarea:focus {
 .wf-node.wf-send { border-left: 4px solid #6d5ef0; }
 .wf-node.wf-wait { border-left: 4px solid #f59e0b; }
 .wf-node.wf-condition { border-left: 4px solid #0ea5e9; }
+.wf-node.wf-ab_split { border-left: 4px solid #d946ef; }
 .wf-node.wf-update_contact { border-left: 4px solid #14b8a6; }
 .wf-node.wf-webhook { border-left: 4px solid #64748b; }
 .wf-node.wf-exit { border-left: 4px solid #e11d48; }
