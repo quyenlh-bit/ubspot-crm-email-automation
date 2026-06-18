@@ -7,6 +7,7 @@ import { logger } from "./utils/logger.js";
 import { webhookRouter } from "./webhooks/router.js";
 import { apiRouter } from "./api/router.js";
 import { trackingRouter } from "./tracking/router.js";
+import { startScheduler } from "./worker/scheduler.js";
 
 const app = express();
 
@@ -61,4 +62,5 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 
 app.listen(env.PORT, () => {
   logger.info(`Server listening on port ${env.PORT}`, { base: env.PUBLIC_BASE_URL });
+  if (env.NODE_ENV !== "test") startScheduler();
 });
