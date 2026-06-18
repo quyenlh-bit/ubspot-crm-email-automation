@@ -145,7 +145,7 @@ export interface JourneyStep {
 
 export interface JourneyRunSummary {
   enrolled: number;
-  steps: { index: number; type: string; detail: string; count: number }[];
+  steps: { index: number; nodeId?: string; type: string; detail: string; count: number }[];
 }
 
 /**
@@ -156,10 +156,15 @@ export interface Journey {
   id: string;
   tenantId: string;
   name: string;
-  /** Trigger audience: members of this segment are enrolled. */
+  /** Trigger audience: members of this segment are enrolled (legacy + sim base). */
   segmentId: string | null;
+  /** Legacy linear steps (v1). Empty for graph workflows. */
   steps: JourneyStep[];
-  status: "draft" | "active";
+  /** v2 graph: trigger + canvas nodes/edges. */
+  trigger?: WorkflowTrigger | null;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  status: "draft" | "active" | "paused";
   lastRunAt?: Date | null;
   lastRunSummary?: JourneyRunSummary | null;
   createdAt: Date;
@@ -169,7 +174,54 @@ export interface Journey {
 export interface JourneyInput {
   name: string;
   segmentId: string | null;
-  steps: JourneyStep[];
+  steps?: JourneyStep[];
+  trigger?: WorkflowTrigger | null;
+  nodes?: WorkflowNode[];
+  edges?: WorkflowEdge[];
+}
+
+// ── Workflow v2 (graph) ─────────────────────────────────────────────────────
+
+export type WorkflowTriggerType = "segment_entry" | "event" | "schedule" | "property_change";
+
+/** What starts the workflow. `segmentId` is the audience (also used for sim runs). */
+export interface WorkflowTrigger {
+  type: WorkflowTriggerType;
+  segmentId?: string | null;
+  eventType?: EventType | null; // for 'event'
+  cron?: string | null; // for 'schedule' (informational in v1)
+  property?: string | null; // for 'property_change'
+  value?: string | null;
+}
+
+export type WorkflowNodeType = "send" | "wait" | "condition" | "update_contact" | "webhook" | "exit";
+
+export interface WorkflowCondition {
+  kind: "lifecycle_is" | "opened" | "clicked";
+  value?: string | null;
+}
+
+/** A node on the workflow canvas. Config fields are per-type (all optional). */
+export interface WorkflowNode {
+  id: string;
+  type: WorkflowNodeType;
+  position: { x: number; y: number };
+  label?: string | null;
+  channel?: MessageChannelType | null; // send
+  templateId?: string | null; // send
+  voucherCode?: string | null; // send
+  waitHours?: number | null; // wait
+  condition?: WorkflowCondition | null; // condition
+  setLifecycleStage?: string | null; // update_contact
+  webhookUrl?: string | null; // webhook
+}
+
+/** Directed edge between nodes. `source` may be "trigger" for the entry edge. */
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  branch?: "yes" | "no" | null; // outgoing branch label for condition nodes
 }
 
 /** Access role for an API key (RBAC). admin > editor > viewer. */
