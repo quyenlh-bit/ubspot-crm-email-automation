@@ -1,54 +1,60 @@
-import { hubspot } from "../hubspot/client.js";
+import { contactRepository } from "../core/contacts/contact.repository.js";
+import { connectionRepository } from "../core/channels/connection.repository.js";
+import { createChannel } from "../channels/registry.js";
+import * as syncLog from "../core/sync/sync-log.repository.js";
+import type { Contact, ContactInput } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
 
-export interface ContactInput {
-  email: string;
-  firstname?: string;
-  lastname?: string;
-  phone?: string;
-  /** Any additional HubSpot contact properties. */
-  [key: string]: string | undefined;
-}
-
 /**
- * Use case 2 — Sync a contact into HubSpot CRM (upsert by email).
- * Creates the contact if new, updates it if it already exists.
+ * Use case 2 — Sync a contact.
+ *
+ * The core Postgres `contacts` table is the source of truth; each connected CRM
+ * provider is a downstream channel. Upsert into the core, then fan the record
+ * out to every enabled channel that can accept it, recording the external id it
+ * was given (and an audit row) for each.
  */
-export async function upsertContact(input: ContactInput) {
-  const properties = Object.fromEntries(
-    Object.entries(input).filter(([, v]) => v !== undefined),
-  ) as Record<string, string>;
+export async function upsertAndSyncContact(
+  tenantId: string,
+  input: ContactInput,
+): Promise<Contact> {
+  const contact = await contactRepository.upsertByEmail(tenantId, input);
+  logger.info("Contact upserted in core", { tenantId, id: contact.id, email: contact.email });
 
-  try {
-    const created = await hubspot.crm.contacts.basicApi.create({
-      properties,
-      associations: [],
-    });
-    logger.info("Contact created", { id: created.id, email: input.email });
-    return created;
-  } catch (err: unknown) {
-    // 409 = contact already exists → fall back to update by email.
-    const status = (err as { code?: number })?.code;
-    if (status === 409) {
-      const updated = await hubspot.crm.contacts.basicApi.update(
-        input.email,
-        { properties },
-        "email",
-      );
-      logger.info("Contact updated", { id: updated.id, email: input.email });
-      return updated;
+  const connections = await connectionRepository.listEnabled(tenantId);
+  for (const connection of connections) {
+    const channel = createChannel(connection);
+    if (!channel.capabilities.includes("contact.push")) continue;
+
+    try {
+      const { externalId } = await channel.pushContact(contact);
+      await contactRepository.setExternalId(tenantId, contact.id, channel.provider, externalId);
+      contact.externalIds[channel.provider] = externalId;
+      await syncLog.record({
+        tenantId,
+        provider: channel.provider,
+        direction: "outbound",
+        entity: "contact",
+        entityId: contact.id,
+        externalId,
+        status: "ok",
+      });
+    } catch (err) {
+      logger.error("Failed to push contact to channel", {
+        provider: channel.provider,
+        email: contact.email,
+        err: String(err),
+      });
+      await syncLog.record({
+        tenantId,
+        provider: channel.provider,
+        direction: "outbound",
+        entity: "contact",
+        entityId: contact.id,
+        status: "error",
+        detail: String(err),
+      });
     }
-    logger.error("Failed to upsert contact", { email: input.email, err: String(err) });
-    throw err;
   }
-}
 
-/** Fetch a single contact by email, returning null if not found. */
-export async function getContactByEmail(email: string) {
-  try {
-    return await hubspot.crm.contacts.basicApi.getById(email, undefined, undefined, undefined, false, "email");
-  } catch (err: unknown) {
-    if ((err as { code?: number })?.code === 404) return null;
-    throw err;
-  }
+  return contact;
 }

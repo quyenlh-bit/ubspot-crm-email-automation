@@ -1,5 +1,5 @@
-import { hubspot } from "../hubspot/client.js";
-import { env } from "../config/env.js";
+import { getChannelForTenant } from "../channels/registry.js";
+import { HubSpotChannel } from "../channels/hubspot/hubspot.channel.js";
 import { logger } from "../utils/logger.js";
 
 export interface SendEmailInput {
@@ -11,31 +11,38 @@ export interface SendEmailInput {
 }
 
 /**
- * Use case 1 — Send an automated transactional email via HubSpot's
- * single-send API. Requires HUBSPOT_TRANSACTIONAL_EMAIL_ID to point at a
- * transactional email asset created in HubSpot.
+ * Use case 1 — Send an automated transactional email.
+ *
+ * Transactional email is HubSpot-specific (single-send API), so this resolves
+ * the tenant's HubSpot channel and uses its exposed SDK + configured email
+ * asset id. Both come from the tenant's stored connection config — there are no
+ * global HubSpot credentials anymore.
  *
  * Docs: https://developers.hubspot.com/docs/api/marketing/transactional-emails
  */
-export async function sendTransactionalEmail(input: SendEmailInput) {
-  if (!env.HUBSPOT_TRANSACTIONAL_EMAIL_ID) {
+export async function sendTransactionalEmail(tenantId: string, input: SendEmailInput) {
+  const channel = await getChannelForTenant(tenantId, "hubspot");
+  if (!(channel instanceof HubSpotChannel)) {
+    throw new Error(`Tenant ${tenantId} has no enabled HubSpot connection for email.`);
+  }
+
+  const emailId = channel.transactionalEmailId;
+  if (!emailId) {
     throw new Error(
-      "HUBSPOT_TRANSACTIONAL_EMAIL_ID is not set — cannot send transactional email.",
+      `HubSpot connection for tenant ${tenantId} has no transactionalEmailId — ` +
+        "set it in the connection config to send transactional email.",
     );
   }
 
-  logger.info("Sending transactional email", { to: input.to });
+  logger.info("Sending transactional email", { tenantId, to: input.to });
 
-  const result = await hubspot.marketing.transactional.singleSendApi.sendEmail({
-    emailId: Number(env.HUBSPOT_TRANSACTIONAL_EMAIL_ID),
+  const result = await channel.sdk.marketing.transactional.singleSendApi.sendEmail({
+    emailId: Number(emailId),
     message: { to: input.to },
     contactProperties: input.contactProperties ?? {},
     customProperties: input.customProperties ?? {},
   });
 
-  logger.info("Transactional email queued", {
-    to: input.to,
-    status: result.status,
-  });
+  logger.info("Transactional email queued", { tenantId, to: input.to, status: result.status });
   return result;
 }
