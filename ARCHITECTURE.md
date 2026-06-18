@@ -17,11 +17,15 @@ builder (send/wait/exit), delivery đa kênh (email/SMS/Zalo ZNS, simulated) + v
 frequency cap, và MEASURE (funnel + attribution ROI). Toàn bộ chạy trên dual backend
 (Postgres + in-memory) với admin UI.
 
-**Còn lại (Phase 2 / production):** tích hợp provider thật (HubSpot transactional / SMS
-gateway / Zalo ZNS API), scheduler/worker để auto-dispatch journey & scheduled campaign,
-real open/click tracking (pixel/link), identity resolution, RBAC/auth, deliverability infra
-(SPF/DKIM/bounce), HubSpot engagement write-back. Các phần "simulated" được đánh dấu rõ
-trong code (TODO).
+**Phase 2 (đã build v1):** real open/click tracking (pixel/redirect), scheduler auto-dispatch
+scheduled campaign, dispatch adapters (email qua HubSpot / SMS+Zalo qua webhook, fallback
+simulated) + bounce→suppress, identity resolution (merge duplicate), RBAC (API key + role,
+opt-in `REQUIRE_AUTH`), HubSpot engagement write-back (adapter).
+
+**Còn lại thật sự (cần infra/creds/ops, không code trong repo được):** credential HubSpot/
+SMS/Zalo thật để dispatch & write-back chạy thật; SPF/DKIM DNS + bounce feed từ provider;
+journey wait-step worker (per-member enrollment timers); login UI cho RBAC. Các phần
+"simulated" đánh dấu `TODO(real)` trong code.
 
 Chú thích trạng thái: ✅ v1 có · 🟡 một phần · ⬜ chưa có.
 
@@ -101,10 +105,17 @@ suppression list (lớp 6). Gửi khi chưa có 2 cái này = rủi ro tuân th�
 | **B** | Segmentation engine (static + dynamic) → Journey builder (send/wait/exit) | 2, 3 | ✅ v1 (branch/A-B/time-trigger để Phase 2) |
 | **C** | MessageChannel abstraction + **Zalo ZNS** + **voucher injection** + frequency cap | 4 | ✅ v1 (transports simulated) |
 | **D** | Event tracking + funnel + **attribution → redemption** | 5 | ✅ v1 (open/click qua tracking endpoint / mô phỏng) |
-| **Phase 2** | Provider dispatch thật, scheduler/worker, real open/click tracking, identity resolution, RBAC/auth, deliverability infra, HubSpot write-back | tất cả | ⬜ chưa làm |
+| **2A** | Real open/click tracking (pixel + redirect) | 5 | ✅ v1 |
+| **2B** | Scheduler auto-dispatch (scheduled campaigns) | 3 | ✅ v1 (journey-wait worker còn lại) |
+| **2C** | Dispatch adapters (email/SMS/Zalo) + bounce→suppress | 4, 6 | ✅ v1 (real khi có creds/webhook) |
+| **2D** | Identity resolution (merge duplicate) | 1 | ✅ v1 |
+| **2E** | RBAC (API key + role, opt-in) | 6 | ✅ v1 (login UI còn lại) |
+| **2F** | HubSpot engagement write-back | 6 | ✅ v1 (real SDK call = TODO) |
+| **Còn lại** | Creds thật, SPF/DKIM DNS, journey-wait worker, login UI | — | ⬜ ops/infra |
 
-> v1 A→D đã build & verify trên in-memory backend. "Simulated" = không gọi provider
-> thật / không có delay thật; logic gate/segment/funnel/attribution là thật.
+> Tất cả v1 build & verify trên in-memory backend, commit từng phần. "Simulated" =
+> không gọi provider thật / không delay thật; logic nghiệp vụ (gate/segment/funnel/
+> attribution/RBAC/merge) là thật và đã verify.
 
 ## Cấu trúc module mục tiêu (khi refactor)
 
