@@ -44,7 +44,7 @@ Chú thích trạng thái: ✅ v1 có · 🟡 một phần · ⬜ chưa có.
 |---|---|---|---|---|
 | **1. DATA** | CDP-lite: ingest contact/lead/status + behavioral event, unified profile, identity resolution, **Consent center** | 🟡 | `core/contacts/*`, `channels/hubspot/*` (sync out), `webhooks/router.ts` (sync in), **`core/compliance/consent.*` (consent center ✅)** | behavioral events đầy đủ, identity resolution |
 | **2. TARGET** | Static list + **dynamic segment** | ✅ | `core/segments/*`, `services/segment.service.ts` (resolveMembers, static + dynamic theo lifecycle) | rule nâng cao (theo behavior/event) |
-| **3. ORCHESTRATE** | Journey: Trigger→Condition→Action, multi-step, wait/delay, A/B, exit | 🟡 | `core/journeys/*`, `services/journey.service.ts` (enrol segment → send/wait/exit, run mô phỏng), `services/campaign.service.ts` | branch/condition, A/B split, time-trigger, auto-dispatch (worker) |
+| **3. ORCHESTRATE** | Journey: Trigger→Condition→Action, multi-step, wait/delay, A/B, exit | ✅ | `core/journeys/*` (graph: trigger/nodes/edges + templates), `services/journey.service.ts` (engine nhánh if/else), **web Workflows canvas (react-flow)** kéo-thả self-service | A/B split, time-based trigger auto-dispatch (journey worker) |
 | **4. DELIVER** | email/SMS/push/**Zalo ZNS** + personalization + **voucher injection** + frequency cap/STO/throttle | 🟡 | `deliver/channel.ts` (email/SMS/**Zalo** registry), `deliver/delivery.service.ts` (gate + **frequency cap** + **voucher inject** + dispatch mô phỏng) | provider dispatch thật, send-time optimization |
 | **5. MEASURE** | open/click/conversion, funnel, **attribution → redemption** | 🟡 | `core/events/*`, `services/analytics.service.ts` (funnel + **attribution ROI**), dashboard funnel/ROI | open/click tracking thật (pixel/link), journey funnel |
 | **6. FOUNDATION** | HubSpot connector, **Decree 13 + suppression**, RBAC, audit, deliverability | 🟡 | `channels/*` (connector in/out), **`core/compliance/suppression.*` ✅**, multi-tenant, `sync_log` | **RBAC/auth**, deliverability infra, HubSpot write-back |
@@ -65,11 +65,13 @@ Chú thích trạng thái: ✅ v1 có · 🟡 một phần · ⬜ chưa có.
   attribute/behavior/lifecycle). Nguyên tắc: *mọi journey bắt đầu từ segment*.
 
 ### 3. ORCHESTRATE — Journey/Campaign builder (trái tim MAP)
-- **Có:** Campaign builder **1 bước** (audience + template + schedule + gửi *mô phỏng*);
-  onboarding workflow viết cứng (`automation.service.ts`).
-- **Gap:** **journey engine** dạng `Trigger → Condition/branch → Action`: trigger từ status change
-  HubSpot / behavioral event / time / entry-vào-segment / lifecycle milestone; multi-step,
-  wait/delay, A/B split, exit condition.
+- **Có:** **Workflow canvas kéo-thả** (web `pages/Workflows.tsx`, react-flow) cho Marketing
+  Operator tự dựng: trigger (vào segment) → node send/wait/**condition (if/else)**/update/
+  webhook/exit, nối nhánh yes/no. Engine graph (`journey.service.ts`) chạy mô phỏng, đếm số
+  người qua từng node theo nhánh (điều kiện: đã mở/đã click/lifecycle). Templates (Welcome,
+  Win-back) để clone, Save/Run/Activate/Pause. Campaign builder cho gửi 1 lần.
+- **Gap:** A/B split node; trigger theo event/time tự kích hoạt (cần journey worker — scheduler
+  hiện auto-dispatch scheduled campaign, chưa advance journey theo thời gian).
 
 ### 4. DELIVER — Channel & message layer
 - **Có:** gửi email qua HubSpot transactional single-send (`email.service.ts`); template +
