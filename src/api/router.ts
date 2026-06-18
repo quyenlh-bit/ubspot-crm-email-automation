@@ -6,6 +6,8 @@ import { contactRepository } from "../core/contacts/contact.repository.js";
 import * as syncLog from "../core/sync/sync-log.repository.js";
 import { upsertAndSyncContact } from "../services/contact.service.js";
 import { runOnboardingWorkflow } from "../services/automation.service.js";
+import { createCampaign, listCampaigns, sendCampaign } from "../services/campaign.service.js";
+import { EMAIL_TEMPLATES } from "../core/campaigns/templates.js";
 import { CHANNEL_PROVIDERS } from "../core/domain.js";
 import { isProviderSupported } from "../channels/registry.js";
 import type { ChannelConnection, ChannelProvider } from "../core/domain.js";
@@ -47,6 +49,11 @@ apiRouter.get(
       CHANNEL_PROVIDERS.map((id) => ({ id, supported: isProviderSupported(id) })),
     );
   }),
+);
+
+apiRouter.get(
+  "/templates",
+  wrap(async (_req, res) => res.json(EMAIL_TEMPLATES)),
 );
 
 apiRouter.get(
@@ -168,5 +175,52 @@ apiRouter.post(
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
     await runOnboardingWorkflow(String(req.params.tenantId), { ...parsed.data, source: "ui" });
     res.json({ ok: true });
+  }),
+);
+
+// ── Campaigns ─────────────────────────────────────────────────────────────────
+
+apiRouter.get(
+  "/tenants/:tenantId/campaigns",
+  wrap(async (req, res) => {
+    res.json(await listCampaigns(String(req.params.tenantId)));
+  }),
+);
+
+const CreateCampaign = z.object({
+  name: z.string().min(1),
+  templateId: z.string().optional(),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  audienceLifecycleStage: z.string().optional(),
+  // Accepts the UI's datetime-local value ("YYYY-MM-DDTHH:mm") or any ISO string.
+  scheduledAt: z.string().min(1).optional(),
+});
+apiRouter.post(
+  "/tenants/:tenantId/campaigns",
+  wrap(async (req, res) => {
+    const parsed = CreateCampaign.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    const { scheduledAt, ...rest } = parsed.data;
+    let scheduled: Date | null = null;
+    if (scheduledAt) {
+      scheduled = new Date(scheduledAt);
+      if (Number.isNaN(scheduled.getTime())) {
+        return res.status(400).json({ error: "scheduledAt is not a valid date" });
+      }
+    }
+    const campaign = await createCampaign(String(req.params.tenantId), { ...rest, scheduledAt: scheduled });
+    res.status(201).json(campaign);
+  }),
+);
+
+apiRouter.post(
+  "/tenants/:tenantId/campaigns/:campaignId/send",
+  wrap(async (req, res) => {
+    const campaign = await sendCampaign(
+      String(req.params.tenantId),
+      String(req.params.campaignId),
+    );
+    res.json(campaign);
   }),
 );

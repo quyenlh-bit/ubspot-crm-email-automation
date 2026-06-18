@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import type {
+  Campaign,
+  CampaignInput,
   ChannelConnection,
   ChannelProvider,
   Contact,
@@ -158,9 +160,53 @@ export const memSyncLog = {
   },
 };
 
+class InMemoryCampaignRepository {
+  private rows: Campaign[] = [];
+
+  async create(tenantId: string, input: CampaignInput): Promise<Campaign> {
+    const now = new Date();
+    const campaign: Campaign = {
+      id: randomUUID(),
+      tenantId,
+      name: input.name,
+      templateId: input.templateId ?? null,
+      subject: input.subject,
+      body: input.body,
+      audienceLifecycleStage: input.audienceLifecycleStage ?? null,
+      scheduledAt: input.scheduledAt ?? null,
+      status: input.scheduledAt ? "scheduled" : "draft",
+      recipientCount: null,
+      sentAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.rows.push(campaign);
+    return campaign;
+  }
+  async list(tenantId: string, limit = 100): Promise<Campaign[]> {
+    return this.rows
+      .filter((r) => r.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+  async findById(tenantId: string, id: string): Promise<Campaign | null> {
+    return this.rows.find((r) => r.tenantId === tenantId && r.id === id) ?? null;
+  }
+  async markSent(tenantId: string, id: string, recipientCount: number): Promise<Campaign> {
+    const c = this.rows.find((r) => r.tenantId === tenantId && r.id === id);
+    if (!c) throw new Error(`Campaign ${id} not found for tenant ${tenantId}`);
+    c.status = "sent";
+    c.recipientCount = recipientCount;
+    c.sentAt = new Date();
+    c.updatedAt = c.sentAt;
+    return c;
+  }
+}
+
 export const memTenants = new InMemoryTenantRepository();
 export const memContacts = new InMemoryContactRepository();
 export const memConnections = new InMemoryConnectionRepository();
+export const memCampaigns = new InMemoryCampaignRepository();
 
 /** Pre-populate demo data so the UI isn't empty on first load. */
 async function seed() {
@@ -182,6 +228,13 @@ async function seed() {
     firstName: "Chi",
     lastName: "Le",
     lifecycleStage: "subscriber",
+  });
+  await memCampaigns.create(tenant.id, {
+    name: "Welcome new leads",
+    templateId: "welcome",
+    subject: "Chào mừng {{firstName}} đến với UrBox!",
+    body: "Xin chào {{firstName}},\n\nCảm ơn bạn đã tham gia.\n\n— Đội ngũ UrBox",
+    audienceLifecycleStage: "lead",
   });
 }
 

@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Contacts from "./pages/Contacts";
 import Connections from "./pages/Connections";
+import Campaigns from "./pages/Campaigns";
 import Automation from "./pages/Automation";
 import SyncLog from "./pages/SyncLog";
 import Tenants from "./pages/Tenants";
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/connections" element={<Connections />} />
+          <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/automation" element={<Automation />} />
           <Route path="/sync-log" element={<SyncLog />} />
           <Route path="/tenants" element={<Tenants />} />

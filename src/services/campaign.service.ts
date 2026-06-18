@@ -1,0 +1,43 @@
+import { campaignRepository } from "../core/campaigns/campaign.repository.js";
+import { contactRepository } from "../core/contacts/contact.repository.js";
+import type { Campaign, CampaignInput } from "../core/domain.js";
+import { logger } from "../utils/logger.js";
+
+/**
+ * Campaign builder use cases.
+ *
+ * Sending is SIMULATED in v1: we resolve the audience and record how many
+ * contacts the campaign would reach, but do not call a real email provider.
+ * The per-recipient dispatch (HubSpot transactional / other channel) hooks in
+ * where noted once credentials and a worker are in place.
+ */
+export const createCampaign = (tenantId: string, input: CampaignInput): Promise<Campaign> =>
+  campaignRepository.create(tenantId, input);
+
+export const listCampaigns = (tenantId: string): Promise<Campaign[]> =>
+  campaignRepository.list(tenantId);
+
+/** Resolve the contacts a campaign targets (lifecycle stage; empty = all). */
+async function resolveRecipients(tenantId: string, campaign: Campaign) {
+  const contacts = await contactRepository.list(tenantId, 1000);
+  const stage = campaign.audienceLifecycleStage;
+  return stage ? contacts.filter((c) => c.lifecycleStage === stage) : contacts;
+}
+
+/** Send (simulated): count recipients, mark the campaign sent. */
+export async function sendCampaign(tenantId: string, campaignId: string): Promise<Campaign> {
+  const campaign = await campaignRepository.findById(tenantId, campaignId);
+  if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
+  if (campaign.status === "sent") return campaign;
+
+  const recipients = await resolveRecipients(tenantId, campaign);
+  // TODO: real dispatch — for each recipient, send via the tenant's email channel
+  // (sendTransactionalEmail) with {{firstName}} merged. Simulated for now.
+  logger.info("Sending campaign (simulated)", {
+    tenantId,
+    campaignId,
+    recipients: recipients.length,
+  });
+
+  return campaignRepository.markSent(tenantId, campaignId, recipients.length);
+}

@@ -50,3 +50,37 @@ export interface Provider {
   id: string;
   supported: boolean;
 }
+
+export type CampaignStatus = "draft" | "scheduled" | "sending" | "sent";
+
+export interface Campaign {
+  id: string;
+  tenantId: string;
+  name: string;
+  templateId?: string | null;
+  subject: string;
+  body: string;
+  audienceLifecycleStage?: string | null;
+  scheduledAt?: string | null;
+  status: CampaignStatus;
+  recipientCount?: number | null;
+  sentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+}
+
+export interface CampaignInput {
+  name: string;
+  templateId?: string;
+  subject: string;
+  body: string;
+  audienceLifecycleStage?: string;
+  scheduledAt?: string;
+}

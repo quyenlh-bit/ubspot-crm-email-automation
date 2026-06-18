@@ -64,3 +64,40 @@ export interface ContactInput {
   phone?: string | null;
   lifecycleStage?: string | null;
 }
+
+/** Lifecycle of an email campaign. */
+export type CampaignStatus = "draft" | "scheduled" | "sending" | "sent";
+
+/**
+ * An email campaign: a message sent to an audience of contacts. The audience is
+ * targeted by lifecycle stage (empty/null = all contacts). `scheduledAt` holds
+ * a future send time; actual dispatch is triggered via the send action.
+ */
+export interface Campaign {
+  id: string;
+  tenantId: string;
+  name: string;
+  /** Built-in template the content was started from (see campaigns/templates). */
+  templateId?: string | null;
+  subject: string;
+  body: string;
+  /** Target audience: contacts with this lifecycle stage. Null/empty = everyone. */
+  audienceLifecycleStage?: string | null;
+  scheduledAt?: Date | null;
+  status: CampaignStatus;
+  /** Number of contacts the campaign was sent to (set once sent). */
+  recipientCount?: number | null;
+  sentAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Fields accepted when creating a campaign (id/status/timestamps managed). */
+export interface CampaignInput {
+  name: string;
+  templateId?: string | null;
+  subject: string;
+  body: string;
+  audienceLifecycleStage?: string | null;
+  scheduledAt?: Date | null;
+}

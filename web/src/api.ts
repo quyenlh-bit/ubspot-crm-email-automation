@@ -1,6 +1,9 @@
 import type {
+  Campaign,
+  CampaignInput,
   ChannelConnection,
   Contact,
+  EmailTemplate,
   Provider,
   Stats,
   SyncLogRecord,
@@ -49,6 +52,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 
 // Meta
 export const getProviders = () => http<Provider[]>("/providers");
+export const getTemplates = () => http<EmailTemplate[]>("/templates");
 export const getStats = (tenantId: string) => http<Stats>(`/tenants/${tenantId}/stats`);
 
 // Tenants
@@ -81,6 +85,17 @@ export const createContact = (tenantId: string, input: Partial<Contact>) =>
 // Sync log
 export const listSyncLog = (tenantId: string) =>
   http<SyncLogRecord[]>(`/tenants/${tenantId}/sync-log`);
+
+// Campaigns
+export const listCampaigns = (tenantId: string) =>
+  http<Campaign[]>(`/tenants/${tenantId}/campaigns`);
+export const createCampaign = (tenantId: string, input: CampaignInput) =>
+  http<Campaign>(`/tenants/${tenantId}/campaigns`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+export const sendCampaign = (tenantId: string, campaignId: string) =>
+  http<Campaign>(`/tenants/${tenantId}/campaigns/${campaignId}/send`, { method: "POST" });
 
 // Workflows
 export const triggerOnboarding = (
