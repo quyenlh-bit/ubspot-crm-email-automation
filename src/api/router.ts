@@ -8,7 +8,6 @@ import { upsertAndSyncContact } from "../services/contact.service.js";
 import { runOnboardingWorkflow } from "../services/automation.service.js";
 import { CHANNEL_PROVIDERS } from "../core/domain.js";
 import { isProviderSupported } from "../channels/registry.js";
-import { query } from "../db/pool.js";
 import type { ChannelConnection, ChannelProvider } from "../core/domain.js";
 
 /**
@@ -54,24 +53,19 @@ apiRouter.get(
   "/tenants/:tenantId/stats",
   wrap(async (req, res) => {
     const tenantId = String(req.params.tenantId);
-    const [row] = await query<{
-      tenants: string;
-      contacts: string;
-      connections: string;
-      sync_errors: string;
-    }>(
-      `select
-         (select count(*) from tenants) as tenants,
-         (select count(*) from contacts where tenant_id = $1) as contacts,
-         (select count(*) from channel_connections where tenant_id = $1 and enabled) as connections,
-         (select count(*) from sync_log where tenant_id = $1 and status = 'error') as sync_errors`,
-      [tenantId],
-    );
+    // Derived from the repositories so it works on both the Postgres and the
+    // in-memory backend without provider-specific SQL.
+    const [tenants, contacts, connections, log] = await Promise.all([
+      tenantRepository.list(),
+      contactRepository.list(tenantId, 500),
+      connectionRepository.listEnabled(tenantId),
+      syncLog.list(tenantId, 500),
+    ]);
     res.json({
-      tenants: Number(row?.tenants ?? 0),
-      contacts: Number(row?.contacts ?? 0),
-      connections: Number(row?.connections ?? 0),
-      syncErrors: Number(row?.sync_errors ?? 0),
+      tenants: tenants.length,
+      contacts: contacts.length,
+      connections: connections.length,
+      syncErrors: log.filter((r) => r.status === "error").length,
     });
   }),
 );

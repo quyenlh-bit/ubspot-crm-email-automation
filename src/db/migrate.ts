@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { pool } from "./pool.js";
+import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -15,6 +16,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(here, "migrations");
 
 async function main() {
+  if (!pool) {
+    throw new Error("DATABASE_URL is required to run migrations.");
+  }
+  const db = pool;
+
+  // Tables are created in DB_SCHEMA (pool sets search_path); ensure it exists.
+  if (env.DB_SCHEMA !== "public") {
+    await db.query(`create schema if not exists "${env.DB_SCHEMA}"`);
+    logger.info("Ensured schema", { schema: env.DB_SCHEMA });
+  }
+
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort();
@@ -22,11 +34,11 @@ async function main() {
   for (const file of files) {
     const sql = readFileSync(path.join(migrationsDir, file), "utf8");
     logger.info("Applying migration", { file });
-    await pool.query(sql);
+    await db.query(sql);
   }
 
   logger.info("Migrations complete", { count: files.length });
-  await pool.end();
+  await db.end();
 }
 
 main().catch((err) => {

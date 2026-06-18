@@ -1,4 +1,5 @@
 import { query } from "../../db/pool.js";
+import { memSyncLog, useInMemory } from "../../db/memory.js";
 import { logger } from "../../utils/logger.js";
 
 /**
@@ -52,6 +53,7 @@ const toRecord = (r: SyncLogRow): SyncLogRecord => ({
 
 /** Most recent audit entries for a tenant (newest first). */
 export async function list(tenantId: string, limit = 100): Promise<SyncLogRecord[]> {
+  if (useInMemory) return memSyncLog.list(tenantId, limit);
   const rows = await query<SyncLogRow>(
     `select id, tenant_id, provider, direction, entity, entity_id, external_id, status, detail, created_at
        from sync_log where tenant_id = $1 order by created_at desc limit $2`,
@@ -61,6 +63,10 @@ export async function list(tenantId: string, limit = 100): Promise<SyncLogRecord
 }
 
 export async function record(entry: SyncLogEntry): Promise<void> {
+  if (useInMemory) {
+    await memSyncLog.record(entry);
+    return;
+  }
   try {
     await query(
       `insert into sync_log

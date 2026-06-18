@@ -1,4 +1,5 @@
 import { query } from "../../db/pool.js";
+import { memTenants, useInMemory } from "../../db/memory.js";
 import type { Tenant } from "../domain.js";
 
 interface TenantRow {
@@ -38,4 +39,4 @@ export class PostgresTenantRepository {
   }
 }
 
-export const tenantRepository = new PostgresTenantRepository();
+export const tenantRepository = useInMemory ? memTenants : new PostgresTenantRepository();

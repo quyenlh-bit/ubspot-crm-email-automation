@@ -15,6 +15,9 @@ import { logger } from "../utils/logger.js";
  *   npm run db:seed
  */
 async function main() {
+  if (!pool) {
+    throw new Error("DATABASE_URL is required to seed the database.");
+  }
   const existing = await tenantRepository.list();
   const tenant = existing[0] ?? (await tenantRepository.create("Demo Tenant"));
   logger.info("Seed tenant", { id: tenant.id, name: tenant.name });

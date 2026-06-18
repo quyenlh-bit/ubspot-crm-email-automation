@@ -1,4 +1,5 @@
 import { query } from "../../db/pool.js";
+import { memConnections, useInMemory } from "../../db/memory.js";
 import type { ChannelConnection, ChannelProvider } from "../domain.js";
 
 interface ConnectionRow {
@@ -65,4 +66,6 @@ export class PostgresConnectionRepository {
   }
 }
 
-export const connectionRepository = new PostgresConnectionRepository();
+export const connectionRepository = useInMemory
+  ? memConnections
+  : new PostgresConnectionRepository();

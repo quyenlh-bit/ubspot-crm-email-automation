@@ -1,4 +1,5 @@
 import { query } from "../../db/pool.js";
+import { memContacts, useInMemory } from "../../db/memory.js";
 import type { Contact, ContactInput } from "../domain.js";
 
 /**
@@ -155,4 +156,6 @@ export class PostgresContactRepository implements ContactRepository {
 }
 
 /** Default repository instance used by services. */
-export const contactRepository: ContactRepository = new PostgresContactRepository();
+export const contactRepository: ContactRepository = useInMemory
+  ? memContacts
+  : new PostgresContactRepository();

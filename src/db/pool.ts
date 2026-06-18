@@ -9,14 +9,25 @@ import { env } from "../config/env.js";
  * (port 6543, transaction mode) so serverless/concurrent workers don't exhaust
  * direct connections.
  */
-export const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  // Supabase requires TLS; `sslmode=require` in the URL also works.
-  ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
-});
+// Only construct a real pool when a connection string is configured. Without
+// DATABASE_URL the app runs on the in-memory backend (see db/memory.ts) and
+// never touches Postgres.
+export const pool = env.DATABASE_URL
+  ? new Pool({
+      connectionString: env.DATABASE_URL,
+      // Run every connection inside the configured schema (default `public`),
+      // so the app can live in an isolated schema of a shared database.
+      options: `-c search_path=${env.DB_SCHEMA},public`,
+      // Supabase requires TLS; `sslmode=require` in the URL also works.
+      ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+    })
+  : null;
 
-/** Convenience typed query helper. */
+/** Convenience typed query helper. Throws if no database is configured. */
 export async function query<T>(text: string, params?: unknown[]): Promise<T[]> {
+  if (!pool) {
+    throw new Error("No DATABASE_URL configured — query() is unavailable in in-memory mode.");
+  }
   const res = await pool.query(text, params);
   return res.rows as T[];
 }
