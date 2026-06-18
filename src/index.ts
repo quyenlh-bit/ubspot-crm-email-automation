@@ -6,6 +6,7 @@ import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 import { webhookRouter } from "./webhooks/router.js";
 import { apiRouter } from "./api/router.js";
+import { trackingRouter } from "./tracking/router.js";
 
 const app = express();
 
@@ -18,6 +19,9 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", env: env.NODE_ENV });
 });
+
+// Public message tracking endpoints (open pixel / click redirect).
+app.use("/track", trackingRouter);
 
 // Admin REST API consumed by the web UI.
 app.use("/api", apiRouter);
