@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { connectionRepository } from "../core/channels/connection.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
 import { createChannel } from "../channels/registry.js";
+import * as suppression from "../core/compliance/suppression.repository.js";
 import * as syncLog from "../core/sync/sync-log.repository.js";
 import type { ChannelEvent } from "../channels/channel.js";
 import type { ChannelConnection } from "../core/domain.js";
@@ -9,6 +10,33 @@ import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
 export const webhookRouter = Router();
+
+/**
+ * Bounce / spam-complaint webhook (deliverability): an email/SMS provider posts
+ * hard bounces & complaints here; we auto-add the address to the suppression
+ * list so it is never contacted again. Body: { tenantId, email, reason? } or
+ * { tenantId, events: [{ email, reason }] }. (Mounted under raw body — parse JSON.)
+ */
+webhookRouter.post("/bounce", async (req: Request, res: Response) => {
+  let body: { tenantId?: string; email?: string; reason?: string; events?: { email: string; reason?: string }[] };
+  try {
+    body = JSON.parse((req.body as Buffer)?.toString("utf8") || "{}");
+  } catch {
+    return res.status(400).json({ error: "invalid JSON" });
+  }
+  const { tenantId } = body;
+  if (!tenantId) return res.status(400).json({ error: "tenantId required" });
+
+  const entries = body.events ?? (body.email ? [{ email: body.email, reason: body.reason }] : []);
+  let suppressed = 0;
+  for (const e of entries) {
+    if (!e.email) continue;
+    await suppression.add(tenantId, e.email, e.reason ?? "bounce");
+    suppressed += 1;
+  }
+  logger.info("Bounce webhook processed", { tenantId, suppressed });
+  res.json({ ok: true, suppressed });
+});
 
 /**
  * Provider webhook receiver.

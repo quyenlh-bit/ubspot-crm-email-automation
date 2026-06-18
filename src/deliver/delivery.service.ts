@@ -49,7 +49,7 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
   }
 
   const body = injectVoucher(input.body, input.voucherCode);
-  await getMessageChannel(channel).send({ to, subject: input.subject, body });
+  await getMessageChannel(channel).send(tenantId, { to, subject: input.subject, body });
   await events.record(tenantId, {
     type: "message.sent",
     email: to,
