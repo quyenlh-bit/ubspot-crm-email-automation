@@ -30,7 +30,7 @@ const MENU: NavItem[] = [
   { to: "/segments", label: "Segments", icon: IconSegments },
   { to: "/connections", label: "Connections", icon: IconConnections },
   { to: "/campaigns", label: "Campaigns", icon: IconCampaigns },
-  { to: "/journeys", label: "Journeys", icon: IconJourneys, badge: "NEW" },
+  { to: "/workflows", label: "Workflows", icon: IconJourneys, badge: "NEW" },
   { to: "/automation", label: "Automation", icon: IconAutomation },
 ];
 

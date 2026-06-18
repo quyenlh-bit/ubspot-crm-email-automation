@@ -15,7 +15,9 @@ import { authMiddleware } from "./auth.js";
 import * as eventRepo from "../core/events/event.repository.js";
 import { createSegment, listSegmentsWithCount, resolveMembers } from "../services/segment.service.js";
 import { segmentRepository } from "../core/segments/segment.repository.js";
-import { createJourney, listJourneys, runJourney } from "../services/journey.service.js";
+import { createJourney, listJourneys, runJourney, updateJourney, setJourneyStatus } from "../services/journey.service.js";
+import { WORKFLOW_TEMPLATES } from "../core/journeys/workflow-templates.js";
+import type { JourneyInput } from "../core/domain.js";
 import { EMAIL_TEMPLATES } from "../core/campaigns/templates.js";
 import * as consentRepo from "../core/compliance/consent.repository.js";
 import * as suppressionRepo from "../core/compliance/suppression.repository.js";
@@ -365,28 +367,56 @@ apiRouter.get(
   wrap(async (req, res) => res.json(await listJourneys(String(req.params.tenantId)))),
 );
 
-const JourneyStep = z.object({
-  type: z.enum(["send", "wait", "exit"]),
-  templateId: z.string().optional(),
-  channel: z.enum(MESSAGE_CHANNELS as [MessageChannelType, ...MessageChannelType[]]).optional(),
-  waitHours: z.number().optional(),
-});
-const CreateJourney = z.object({
+// Graph payload validation is intentionally light — the canvas controls shape;
+// nodes/edges/trigger are passed through and typed by the domain.
+const WorkflowGraph = z.object({
   name: z.string().min(1),
   segmentId: z.string().nullable().optional(),
-  steps: z.array(JourneyStep).min(1),
+  trigger: z.record(z.unknown()).nullable().optional(),
+  nodes: z.array(z.record(z.unknown())).optional(),
+  edges: z.array(z.record(z.unknown())).optional(),
+  steps: z.array(z.record(z.unknown())).optional(),
 });
+
+const toInput = (d: z.infer<typeof WorkflowGraph>): JourneyInput => ({
+  name: d.name,
+  segmentId: d.segmentId ?? null,
+  trigger: (d.trigger ?? null) as unknown as JourneyInput["trigger"],
+  nodes: (d.nodes ?? []) as unknown as JourneyInput["nodes"],
+  edges: (d.edges ?? []) as unknown as JourneyInput["edges"],
+  steps: (d.steps ?? []) as unknown as JourneyInput["steps"],
+});
+
+apiRouter.get(
+  "/workflow-templates",
+  wrap(async (_req, res) => res.json(WORKFLOW_TEMPLATES)),
+);
+
 apiRouter.post(
   "/tenants/:tenantId/journeys",
   wrap(async (req, res) => {
-    const parsed = CreateJourney.safeParse(req.body);
+    const parsed = WorkflowGraph.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
-    const journey = await createJourney(String(req.params.tenantId), {
-      name: parsed.data.name,
-      segmentId: parsed.data.segmentId ?? null,
-      steps: parsed.data.steps,
-    });
-    res.status(201).json(journey);
+    res.status(201).json(await createJourney(String(req.params.tenantId), toInput(parsed.data)));
+  }),
+);
+
+apiRouter.put(
+  "/tenants/:tenantId/journeys/:journeyId",
+  wrap(async (req, res) => {
+    const parsed = WorkflowGraph.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    res.json(await updateJourney(String(req.params.tenantId), String(req.params.journeyId), toInput(parsed.data)));
+  }),
+);
+
+const SetStatus = z.object({ status: z.enum(["draft", "active", "paused"]) });
+apiRouter.post(
+  "/tenants/:tenantId/journeys/:journeyId/status",
+  wrap(async (req, res) => {
+    const parsed = SetStatus.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    res.json(await setJourneyStatus(String(req.params.tenantId), String(req.params.journeyId), parsed.data.status));
   }),
 );
 

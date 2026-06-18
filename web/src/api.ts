@@ -17,6 +17,7 @@ import type {
   SuppressionEntry,
   SyncLogRecord,
   Tenant,
+  WorkflowTemplate,
 } from "./types";
 
 const BASE = "/api";
@@ -108,13 +109,18 @@ export const listSegments = (tenantId: string) =>
 export const createSegment = (tenantId: string, input: SegmentInput) =>
   http<Segment>(`/tenants/${tenantId}/segments`, { method: "POST", body: JSON.stringify(input) });
 
-// Journeys
+// Journeys / workflows
 export const listJourneys = (tenantId: string) =>
   http<Journey[]>(`/tenants/${tenantId}/journeys`);
 export const createJourney = (tenantId: string, input: JourneyInput) =>
   http<Journey>(`/tenants/${tenantId}/journeys`, { method: "POST", body: JSON.stringify(input) });
+export const updateJourney = (tenantId: string, journeyId: string, input: JourneyInput) =>
+  http<Journey>(`/tenants/${tenantId}/journeys/${journeyId}`, { method: "PUT", body: JSON.stringify(input) });
+export const setJourneyStatus = (tenantId: string, journeyId: string, status: Journey["status"]) =>
+  http<Journey>(`/tenants/${tenantId}/journeys/${journeyId}/status`, { method: "POST", body: JSON.stringify({ status }) });
 export const runJourney = (tenantId: string, journeyId: string) =>
   http<Journey>(`/tenants/${tenantId}/journeys/${journeyId}/run`, { method: "POST" });
+export const getWorkflowTemplates = () => http<WorkflowTemplate[]>(`/workflow-templates`);
 
 // Campaigns
 export const listCampaigns = (tenantId: string) =>

@@ -317,7 +317,10 @@ class InMemoryJourneyRepository {
       tenantId,
       name: input.name,
       segmentId: input.segmentId,
-      steps: input.steps,
+      steps: input.steps ?? [],
+      trigger: input.trigger ?? null,
+      nodes: input.nodes ?? [],
+      edges: input.edges ?? [],
       status: "draft",
       lastRunAt: null,
       lastRunSummary: null,
@@ -326,6 +329,25 @@ class InMemoryJourneyRepository {
     };
     this.rows.push(journey);
     return journey;
+  }
+  async update(tenantId: string, id: string, input: JourneyInput): Promise<Journey> {
+    const j = this.rows.find((r) => r.tenantId === tenantId && r.id === id);
+    if (!j) throw new Error(`Journey ${id} not found for tenant ${tenantId}`);
+    j.name = input.name;
+    j.segmentId = input.segmentId;
+    j.steps = input.steps ?? [];
+    j.trigger = input.trigger ?? null;
+    j.nodes = input.nodes ?? [];
+    j.edges = input.edges ?? [];
+    j.updatedAt = new Date();
+    return j;
+  }
+  async setStatus(tenantId: string, id: string, status: Journey["status"]): Promise<Journey> {
+    const j = this.rows.find((r) => r.tenantId === tenantId && r.id === id);
+    if (!j) throw new Error(`Journey ${id} not found for tenant ${tenantId}`);
+    j.status = status;
+    j.updatedAt = new Date();
+    return j;
   }
   async list(tenantId: string): Promise<Journey[]> {
     return this.rows
@@ -338,7 +360,6 @@ class InMemoryJourneyRepository {
   async recordRun(tenantId: string, id: string, summary: JourneyRunSummary): Promise<Journey> {
     const j = this.rows.find((r) => r.tenantId === tenantId && r.id === id);
     if (!j) throw new Error(`Journey ${id} not found for tenant ${tenantId}`);
-    j.status = "active";
     j.lastRunAt = new Date();
     j.lastRunSummary = summary;
     j.updatedAt = j.lastRunAt;
@@ -447,11 +468,23 @@ async function seed() {
   await memJourneys.create(tenant.id, {
     name: "Lead onboarding",
     segmentId: leadSeg.id,
-    steps: [
-      { type: "send", templateId: "welcome", channel: "email" },
-      { type: "wait", waitHours: 48 },
-      { type: "send", templateId: "promo", channel: "zalo" },
-      { type: "exit" },
+    trigger: { type: "segment_entry", segmentId: leadSeg.id },
+    nodes: [
+      { id: "n1", type: "send", position: { x: 250, y: 40 }, channel: "email", templateId: "welcome" },
+      { id: "n2", type: "wait", position: { x: 250, y: 160 }, waitHours: 48 },
+      { id: "n3", type: "condition", position: { x: 250, y: 280 }, condition: { kind: "opened" } },
+      { id: "n4", type: "send", position: { x: 80, y: 410 }, channel: "zalo", templateId: "promo" },
+      { id: "n5", type: "send", position: { x: 430, y: 410 }, channel: "email", templateId: "welcome" },
+      { id: "n6", type: "exit", position: { x: 250, y: 540 } },
+    ],
+    edges: [
+      { id: "e0", source: "trigger", target: "n1" },
+      { id: "e1", source: "n1", target: "n2" },
+      { id: "e2", source: "n2", target: "n3" },
+      { id: "e3", source: "n3", target: "n4", branch: "yes" },
+      { id: "e4", source: "n3", target: "n5", branch: "no" },
+      { id: "e5", source: "n4", target: "n6" },
+      { id: "e6", source: "n5", target: "n6" },
     ],
   });
 }
