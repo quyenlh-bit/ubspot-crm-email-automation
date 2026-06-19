@@ -17,6 +17,7 @@ import { createSegment, listSegmentsWithCount, resolveMembers } from "../service
 import { segmentRepository } from "../core/segments/segment.repository.js";
 import { createJourney, listJourneys, runJourney, updateJourney, setJourneyStatus } from "../services/journey.service.js";
 import { WORKFLOW_TEMPLATES } from "../core/journeys/workflow-templates.js";
+import { journeyRunRepository } from "../core/journeys/run.repository.js";
 import type { JourneyInput } from "../core/domain.js";
 import { EMAIL_TEMPLATES } from "../core/campaigns/templates.js";
 import * as consentRepo from "../core/compliance/consent.repository.js";
@@ -426,6 +427,11 @@ apiRouter.post(
     const journey = await runJourney(String(req.params.tenantId), String(req.params.journeyId));
     res.json(journey);
   }),
+);
+
+apiRouter.get(
+  "/tenants/:tenantId/journeys/:journeyId/runs",
+  wrap(async (req, res) => res.json(await journeyRunRepository.countByStatus(String(req.params.journeyId)))),
 );
 
 // ── Compliance: consent & suppression (Decree 13 gate) ──────────────────────

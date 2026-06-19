@@ -234,6 +234,26 @@ export interface WorkflowEdge {
   branch?: WorkflowBranch | null; // condition (yes/no) or ab_split (a/b)
 }
 
+/**
+ * Durable per-member execution state for a journey. The worker advances one run
+ * node-by-node; at a `wait` node it parks the run (`waiting` + `wakeAt`) and
+ * resumes when due — so real time passes and post-send conditions are meaningful.
+ */
+export type JourneyRunStatus = "active" | "waiting" | "completed";
+
+export interface JourneyRun {
+  id: string;
+  tenantId: string;
+  journeyId: string;
+  email: string;
+  /** Node to execute next; null once completed. */
+  currentNodeId: string | null;
+  status: JourneyRunStatus;
+  wakeAt: Date | null;
+  enteredAt: Date;
+  updatedAt: Date;
+}
+
 /** Access role for an API key (RBAC). admin > editor > viewer. */
 export type ApiRole = "admin" | "editor" | "viewer";
 

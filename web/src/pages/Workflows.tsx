@@ -16,6 +16,7 @@ import { useAsync } from "../useAsync";
 import {
   createJourney,
   getTemplates,
+  getJourneyRuns,
   getWorkflowTemplates,
   listJourneys,
   listSegments,
@@ -103,6 +104,12 @@ export default function Workflows() {
   const [selNode, setSelNode] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [runs, setRuns] = useState<{ active: number; waiting: number; completed: number } | null>(null);
+
+  const refreshRuns = useCallback(async (id: string | null) => {
+    if (!id) { setRuns(null); return; }
+    try { setRuns(await getJourneyRuns(selectedId!, id)); } catch { setRuns(null); }
+  }, [selectedId]);
 
   const nodeTypes = useMemo(() => ({ wf: CanvasNode, trigger: TriggerNode }), []);
 
@@ -140,6 +147,7 @@ export default function Workflows() {
   function openJourney(j: Journey) {
     setCurrentId(j.id);
     loadGraph(j.nodes, j.edges, { name: j.name, segmentId: j.trigger?.segmentId ?? j.segmentId ?? "", status: j.status });
+    void refreshRuns(j.id);
   }
 
   function loadTemplate(id: string) {
@@ -207,7 +215,9 @@ export default function Workflows() {
     try {
       const j = await setJourneyStatus(selectedId!, currentId, next);
       setStatus(j.status);
+      setMsg(next === "active" ? "Đã Activate — worker sẽ tự enrol member mới & chạy thật theo thời gian." : "Đã Pause.");
       journeys.reload();
+      void refreshRuns(currentId);
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   }
 
@@ -220,7 +230,7 @@ export default function Workflows() {
     <>
       <div className="page-head">
         <h1>Workflows</h1>
-        <p className="muted">Builder kéo-thả cho Marketing Operator: trigger → node (send/wait/condition/update/webhook/exit) → nhánh. Kéo từ chấm dưới của node để nối.</p>
+        <p className="muted">Builder kéo-thả: trigger → node (send/wait/condition/A-B/update/webhook/exit) → nhánh. <b>Xem trước</b> = mô phỏng (không gửi). <b>Activate</b> = chạy thật: worker tự enrol member mới, <code>wait</code> dừng đúng thời gian rồi tiếp tục.</p>
       </div>
 
       <div className="wf-toolbar">
@@ -230,6 +240,11 @@ export default function Workflows() {
           {(segments.data ?? []).map((s) => <option key={s.id} value={s.id}>Vào segment: {s.name} ({s.memberCount ?? "?"})</option>)}
         </select>
         <StatusBadge status={status} />
+        {runs && (
+          <span className="muted small" title="runs: active / waiting / completed">
+            ▶ {runs.active} · ⏸ {runs.waiting} · ✓ {runs.completed}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <select value="" onChange={(e) => { if (e.target.value) loadTemplate(e.target.value); }} title="Nạp template">
           <option value="">+ Từ template…</option>
@@ -237,8 +252,8 @@ export default function Workflows() {
         </select>
         <button className="btn ghost" onClick={newWorkflow}>Mới</button>
         <button className="btn ghost" onClick={save}>Lưu</button>
-        <button className="btn ghost" onClick={run}>Chạy (mô phỏng)</button>
-        <button className="btn" onClick={toggleStatus}>{status === "active" ? "Pause" : "Activate"}</button>
+        <button className="btn ghost" onClick={run} title="Mô phỏng — đếm số người qua từng node, KHÔNG gửi thật">Xem trước</button>
+        <button className="btn" onClick={toggleStatus} title="Activate = worker tự enrol & chạy thật theo thời gian">{status === "active" ? "Pause" : "Activate"}</button>
       </div>
 
       {error && <ErrorBox message={error} />}
