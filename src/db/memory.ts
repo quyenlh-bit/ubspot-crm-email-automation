@@ -14,6 +14,8 @@ import type {
   EventInput,
   Journey,
   JourneyInput,
+  JourneyRun,
+  JourneyRunStatus,
   JourneyRunSummary,
   MessageChannelType,
   MessageEvent,
@@ -414,6 +416,49 @@ export const memApiKeys = {
   },
   async findByKey(key: string): Promise<ApiKey | null> {
     return apiKeyRows.find((r) => r.key === key) ?? null;
+  },
+};
+
+const journeyRunRows: JourneyRun[] = [];
+export const memJourneyRuns = {
+  async enroll(tenantId: string, journeyId: string, email: string, startNodeId: string | null): Promise<JourneyRun | null> {
+    if (journeyRunRows.some((r) => r.journeyId === journeyId && r.email === email)) return null;
+    const now = new Date();
+    const run: JourneyRun = {
+      id: randomUUID(), tenantId, journeyId, email,
+      currentNodeId: startNodeId, status: "active", wakeAt: null, enteredAt: now, updatedAt: now,
+    };
+    journeyRunRows.push(run);
+    return run;
+  },
+  async listDue(tenantId: string, now: Date): Promise<JourneyRun[]> {
+    return journeyRunRows.filter(
+      (r) => r.tenantId === tenantId && (r.status === "active" || (r.status === "waiting" && r.wakeAt !== null && r.wakeAt <= now)),
+    );
+  },
+  async save(run: JourneyRun): Promise<void> {
+    const r = journeyRunRows.find((x) => x.id === run.id);
+    if (r) { r.currentNodeId = run.currentNodeId; r.status = run.status; r.wakeAt = run.wakeAt; r.updatedAt = new Date(); }
+  },
+  async countByStatus(journeyId: string): Promise<Record<JourneyRunStatus, number>> {
+    const out: Record<JourneyRunStatus, number> = { active: 0, waiting: 0, completed: 0 };
+    for (const r of journeyRunRows.filter((x) => x.journeyId === journeyId)) out[r.status] += 1;
+    return out;
+  },
+};
+
+const enrollmentRows: { journeyId: string; email: string }[] = [];
+export const memEnrollments = {
+  async isEnrolled(journeyId: string, email: string): Promise<boolean> {
+    return enrollmentRows.some((r) => r.journeyId === journeyId && r.email === email);
+  },
+  async enroll(journeyId: string, email: string): Promise<void> {
+    if (!enrollmentRows.some((r) => r.journeyId === journeyId && r.email === email)) {
+      enrollmentRows.push({ journeyId, email });
+    }
+  },
+  async count(journeyId: string): Promise<number> {
+    return enrollmentRows.filter((r) => r.journeyId === journeyId).length;
   },
 };
 

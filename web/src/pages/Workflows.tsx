@@ -16,6 +16,7 @@ import { useAsync } from "../useAsync";
 import {
   createJourney,
   getTemplates,
+  getJourneyRuns,
   getWorkflowTemplates,
   listJourneys,
   listSegments,
@@ -31,6 +32,7 @@ const NODE_META: Record<WorkflowNodeType | "trigger", { label: string; emoji: st
   send: { label: "Send", emoji: "✉️" },
   wait: { label: "Wait", emoji: "⏱️" },
   condition: { label: "Condition", emoji: "◇" },
+  ab_split: { label: "A/B split", emoji: "⤨" },
   update_contact: { label: "Update", emoji: "✎" },
   webhook: { label: "Webhook", emoji: "🔗" },
   exit: { label: "Exit", emoji: "⏹" },
@@ -41,6 +43,7 @@ function nodeSummary(d: WorkflowNode): string {
     case "send": return `${d.templateId || "?"} · ${d.channel || "email"}`;
     case "wait": return `${d.waitHours ?? 0}h`;
     case "condition": return `${d.condition?.kind ?? "?"}${d.condition?.value ? `=${d.condition.value}` : ""}`;
+    case "ab_split": return `${d.splitPercent ?? 50}% A / ${100 - (d.splitPercent ?? 50)}% B`;
     case "update_contact": return `lifecycle → ${d.setLifecycleStage ?? "?"}`;
     case "webhook": return d.webhookUrl || "—";
     default: return "";
@@ -59,6 +62,11 @@ function CanvasNode({ data, selected }: NodeProps<WorkflowNode & { count?: numbe
         <>
           <Handle id="yes" type="source" position={Position.Bottom} style={{ left: "28%" }} />
           <Handle id="no" type="source" position={Position.Bottom} style={{ left: "72%" }} />
+        </>
+      ) : data.type === "ab_split" ? (
+        <>
+          <Handle id="a" type="source" position={Position.Bottom} style={{ left: "28%" }} />
+          <Handle id="b" type="source" position={Position.Bottom} style={{ left: "72%" }} />
         </>
       ) : data.type !== "exit" ? (
         <Handle type="source" position={Position.Bottom} />
@@ -96,6 +104,12 @@ export default function Workflows() {
   const [selNode, setSelNode] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [runs, setRuns] = useState<{ active: number; waiting: number; completed: number } | null>(null);
+
+  const refreshRuns = useCallback(async (id: string | null) => {
+    if (!id) { setRuns(null); return; }
+    try { setRuns(await getJourneyRuns(selectedId!, id)); } catch { setRuns(null); }
+  }, [selectedId]);
 
   const nodeTypes = useMemo(() => ({ wf: CanvasNode, trigger: TriggerNode }), []);
 
@@ -133,6 +147,7 @@ export default function Workflows() {
   function openJourney(j: Journey) {
     setCurrentId(j.id);
     loadGraph(j.nodes, j.edges, { name: j.name, segmentId: j.trigger?.segmentId ?? j.segmentId ?? "", status: j.status });
+    void refreshRuns(j.id);
   }
 
   function loadTemplate(id: string) {
@@ -150,6 +165,7 @@ export default function Workflows() {
     if (type === "send") { base.channel = "email"; base.templateId = "welcome"; }
     if (type === "wait") base.waitHours = 24;
     if (type === "condition") base.condition = { kind: "opened" };
+    if (type === "ab_split") base.splitPercent = 50;
     if (type === "update_contact") base.setLifecycleStage = "customer";
     setRfNodes((nds) => [...nds, { id, type: "wf", position: base.position, data: base }]);
   }
@@ -199,7 +215,9 @@ export default function Workflows() {
     try {
       const j = await setJourneyStatus(selectedId!, currentId, next);
       setStatus(j.status);
+      setMsg(next === "active" ? "Đã Activate — worker sẽ tự enrol member mới & chạy thật theo thời gian." : "Đã Pause.");
       journeys.reload();
+      void refreshRuns(currentId);
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   }
 
@@ -212,7 +230,7 @@ export default function Workflows() {
     <>
       <div className="page-head">
         <h1>Workflows</h1>
-        <p className="muted">Builder kéo-thả cho Marketing Operator: trigger → node (send/wait/condition/update/webhook/exit) → nhánh. Kéo từ chấm dưới của node để nối.</p>
+        <p className="muted">Builder kéo-thả: trigger → node (send/wait/condition/A-B/update/webhook/exit) → nhánh. <b>Xem trước</b> = mô phỏng (không gửi). <b>Activate</b> = chạy thật: worker tự enrol member mới, <code>wait</code> dừng đúng thời gian rồi tiếp tục.</p>
       </div>
 
       <div className="wf-toolbar">
@@ -222,6 +240,11 @@ export default function Workflows() {
           {(segments.data ?? []).map((s) => <option key={s.id} value={s.id}>Vào segment: {s.name} ({s.memberCount ?? "?"})</option>)}
         </select>
         <StatusBadge status={status} />
+        {runs && (
+          <span className="muted small" title="runs: active / waiting / completed">
+            ▶ {runs.active} · ⏸ {runs.waiting} · ✓ {runs.completed}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <select value="" onChange={(e) => { if (e.target.value) loadTemplate(e.target.value); }} title="Nạp template">
           <option value="">+ Từ template…</option>
@@ -229,8 +252,8 @@ export default function Workflows() {
         </select>
         <button className="btn ghost" onClick={newWorkflow}>Mới</button>
         <button className="btn ghost" onClick={save}>Lưu</button>
-        <button className="btn ghost" onClick={run}>Chạy (mô phỏng)</button>
-        <button className="btn" onClick={toggleStatus}>{status === "active" ? "Pause" : "Activate"}</button>
+        <button className="btn ghost" onClick={run} title="Mô phỏng — đếm số người qua từng node, KHÔNG gửi thật">Xem trước</button>
+        <button className="btn" onClick={toggleStatus} title="Activate = worker tự enrol & chạy thật theo thời gian">{status === "active" ? "Pause" : "Activate"}</button>
       </div>
 
       {error && <ErrorBox message={error} />}
@@ -239,7 +262,7 @@ export default function Workflows() {
       <div className="wf-layout">
         <aside className="wf-side">
           <div className="wf-side-title">Thêm node</div>
-          {(["send", "wait", "condition", "update_contact", "webhook", "exit"] as WorkflowNodeType[]).map((t) => (
+          {(["send", "wait", "condition", "ab_split", "update_contact", "webhook", "exit"] as WorkflowNodeType[]).map((t) => (
             <button key={t} className="btn ghost wf-add" onClick={() => addNode(t)}>{NODE_META[t].emoji} {NODE_META[t].label}</button>
           ))}
           <div className="wf-side-title" style={{ marginTop: 16 }}>Workflows</div>
@@ -282,6 +305,14 @@ export default function Workflows() {
                     <label className="wf-field">Giá trị<input value={selData.condition?.value ?? ""} onChange={(e) => patchNode({ condition: { kind: "lifecycle_is", value: e.target.value } })} placeholder="customer" /></label>
                   )}
                   <p className="muted small">Nhánh: chấm trái = Yes, chấm phải = No.</p>
+                </>
+              )}
+              {selData.type === "ab_split" && (
+                <>
+                  <label className="wf-field">% vào nhánh A
+                    <input type="number" min={0} max={100} value={selData.splitPercent ?? 50} onChange={(e) => patchNode({ splitPercent: Number(e.target.value) })} />
+                  </label>
+                  <p className="muted small">Nhánh: chấm trái = A, chấm phải = B (chia theo email, ổn định).</p>
                 </>
               )}
               {selData.type === "update_contact" && (

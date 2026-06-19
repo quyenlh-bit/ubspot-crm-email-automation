@@ -121,6 +121,8 @@ export const setJourneyStatus = (tenantId: string, journeyId: string, status: Jo
 export const runJourney = (tenantId: string, journeyId: string) =>
   http<Journey>(`/tenants/${tenantId}/journeys/${journeyId}/run`, { method: "POST" });
 export const getWorkflowTemplates = () => http<WorkflowTemplate[]>(`/workflow-templates`);
+export const getJourneyRuns = (tenantId: string, journeyId: string) =>
+  http<{ active: number; waiting: number; completed: number }>(`/tenants/${tenantId}/journeys/${journeyId}/runs`);
 
 // Campaigns
 export const listCampaigns = (tenantId: string) =>

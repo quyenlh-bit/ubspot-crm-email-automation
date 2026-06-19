@@ -1,6 +1,8 @@
 import { tenantRepository } from "../core/tenants/tenant.repository.js";
 import { campaignRepository } from "../core/campaigns/campaign.repository.js";
+import { journeyRepository } from "../core/journeys/journey.repository.js";
 import { sendCampaign } from "../services/campaign.service.js";
+import { advanceDueRuns, enrollNewMembers } from "../services/journey.service.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -34,6 +36,22 @@ async function tick(): Promise<void> {
         } catch (err) {
           logger.error("Scheduler dispatch failed", { campaignId: c.id, err: String(err) });
         }
+      }
+
+      // Journey worker: enrol new members into active workflows, then advance
+      // every due run (active, or waiting whose wake time has passed).
+      const journeys = await journeyRepository.list(t.id);
+      for (const j of journeys.filter((j) => j.status === "active")) {
+        try {
+          await enrollNewMembers(t.id, j);
+        } catch (err) {
+          logger.error("Journey enroll failed", { journeyId: j.id, err: String(err) });
+        }
+      }
+      try {
+        await advanceDueRuns(t.id);
+      } catch (err) {
+        logger.error("Journey advance failed", { tenantId: t.id, err: String(err) });
       }
     }
   } finally {

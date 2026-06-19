@@ -194,7 +194,14 @@ export interface WorkflowTrigger {
   value?: string | null;
 }
 
-export type WorkflowNodeType = "send" | "wait" | "condition" | "update_contact" | "webhook" | "exit";
+export type WorkflowNodeType =
+  | "send"
+  | "wait"
+  | "condition"
+  | "ab_split"
+  | "update_contact"
+  | "webhook"
+  | "exit";
 
 export interface WorkflowCondition {
   kind: "lifecycle_is" | "opened" | "clicked";
@@ -212,16 +219,39 @@ export interface WorkflowNode {
   voucherCode?: string | null; // send
   waitHours?: number | null; // wait
   condition?: WorkflowCondition | null; // condition
+  splitPercent?: number | null; // ab_split: % routed to branch "a" (default 50)
   setLifecycleStage?: string | null; // update_contact
   webhookUrl?: string | null; // webhook
 }
+
+export type WorkflowBranch = "yes" | "no" | "a" | "b";
 
 /** Directed edge between nodes. `source` may be "trigger" for the entry edge. */
 export interface WorkflowEdge {
   id: string;
   source: string;
   target: string;
-  branch?: "yes" | "no" | null; // outgoing branch label for condition nodes
+  branch?: WorkflowBranch | null; // condition (yes/no) or ab_split (a/b)
+}
+
+/**
+ * Durable per-member execution state for a journey. The worker advances one run
+ * node-by-node; at a `wait` node it parks the run (`waiting` + `wakeAt`) and
+ * resumes when due — so real time passes and post-send conditions are meaningful.
+ */
+export type JourneyRunStatus = "active" | "waiting" | "completed";
+
+export interface JourneyRun {
+  id: string;
+  tenantId: string;
+  journeyId: string;
+  email: string;
+  /** Node to execute next; null once completed. */
+  currentNodeId: string | null;
+  status: JourneyRunStatus;
+  wakeAt: Date | null;
+  enteredAt: Date;
+  updatedAt: Date;
 }
 
 /** Access role for an API key (RBAC). admin > editor > viewer. */

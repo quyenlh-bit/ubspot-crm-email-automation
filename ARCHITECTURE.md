@@ -70,8 +70,13 @@ Chú thích trạng thái: ✅ v1 có · 🟡 một phần · ⬜ chưa có.
   webhook/exit, nối nhánh yes/no. Engine graph (`journey.service.ts`) chạy mô phỏng, đếm số
   người qua từng node theo nhánh (điều kiện: đã mở/đã click/lifecycle). Templates (Welcome,
   Win-back) để clone, Save/Run/Activate/Pause. Campaign builder cho gửi 1 lần.
-- **Gap:** A/B split node; trigger theo event/time tự kích hoạt (cần journey worker — scheduler
-  hiện auto-dispatch scheduled campaign, chưa advance journey theo thời gian).
+- **Có thêm:** **A/B split node**; **durable per-member state machine** (`journey_runs`): worker
+  enrol member mới vào workflow `active`, chạy từng node — gặp `wait` thì **park** (`waiting` +
+  `wakeAt`) và **resume đúng thời gian thật**, nên condition sau wait (đã mở?) đánh giá trên
+  engagement thật. `update_contact`/`webhook` chạy **thật**. "Xem trước" = dry-run (đếm, không gửi);
+  "Activate" = chạy thật qua worker.
+- **Gap:** trigger event/property tức thời (hiện theo cadence worker 10s); versioning khi sửa
+  workflow đang chạy; goal/exit-by-conversion; holdout.
 
 ### 4. DELIVER — Channel & message layer
 - **Có:** gửi email qua HubSpot transactional single-send (`email.service.ts`); template +
