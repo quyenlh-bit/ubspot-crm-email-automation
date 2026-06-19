@@ -4,6 +4,7 @@ import { getSegment, resolveMembers } from "./segment.service.js";
 import { deliver } from "../deliver/delivery.service.js";
 import { findTemplate } from "../core/campaigns/templates.js";
 import * as events from "../core/events/event.repository.js";
+import * as vouchers from "../core/vouchers/voucher.repository.js";
 import { contactRepository } from "../core/contacts/contact.repository.js";
 import type {
   Contact,
@@ -11,7 +12,9 @@ import type {
   JourneyInput,
   JourneyRun,
   JourneyRunSummary,
+  MessageEvent,
   WorkflowCondition,
+  WorkflowGoal,
   WorkflowNode,
 } from "../core/domain.js";
 import { logger } from "../utils/logger.js";
@@ -38,13 +41,34 @@ async function audienceOf(tenantId: string, journey: Journey): Promise<Contact[]
   return contactRepository.list(tenantId, 1000);
 }
 
-function evalCondition(member: Contact, cond: WorkflowCondition | null, openSet: Set<string>, clickSet: Set<string>): boolean {
+function evalCondition(
+  member: Contact,
+  cond: WorkflowCondition | null,
+  openSet: Set<string>,
+  clickSet: Set<string>,
+  redeemedSet: Set<string>,
+): boolean {
   if (!cond) return false;
   switch (cond.kind) {
     case "lifecycle_is": return (member.lifecycleStage ?? "") === (cond.value ?? "");
     case "opened": return openSet.has(member.email);
     case "clicked": return clickSet.has(member.email);
+    case "voucher_redeemed": return redeemedSet.has(member.email);
     default: return false;
+  }
+}
+
+/** Has the member met the journey goal (since entering)? */
+function goalMet(goal: WorkflowGoal, member: Contact, run: JourneyRun, evts: MessageEvent[], redeemedSet: Set<string>): boolean {
+  switch (goal.type) {
+    case "conversion":
+      return evts.some((e) => e.type === "conversion" && e.email === member.email && e.createdAt >= run.enteredAt);
+    case "voucher_redeemed":
+      return redeemedSet.has(member.email);
+    case "lifecycle_is":
+      return (member.lifecycleStage ?? "") === (goal.value ?? "");
+    default:
+      return false;
   }
 }
 
@@ -76,6 +100,7 @@ export async function runJourney(tenantId: string, journeyId: string): Promise<J
   const evts = await events.list(tenantId, 5000);
   const openSet = new Set(evts.filter((e) => e.type === "message.open").map((e) => e.email));
   const clickSet = new Set(evts.filter((e) => e.type === "message.click").map((e) => e.email));
+  const redeemedSet = new Set(await vouchers.redeemedEmails(tenantId));
 
   const nodeById = new Map(journey.nodes.map((n) => [n.id, n]));
   const outEdges = (id: string) => journey.edges.filter((e) => e.source === id);
@@ -91,7 +116,7 @@ export async function runJourney(tenantId: string, journeyId: string): Promise<J
       counts.set(node.id, (counts.get(node.id) ?? 0) + 1);
       if (node.type === "exit") break;
       if (node.type === "condition") {
-        const branch = evalCondition(member, node.condition ?? null, openSet, clickSet) ? "yes" : "no";
+        const branch = evalCondition(member, node.condition ?? null, openSet, clickSet, redeemedSet) ? "yes" : "no";
         currentId = outEdges(node.id).find((e) => e.branch === branch)?.target;
       } else if (node.type === "ab_split") {
         const branch = hashPercent(member.email) < (node.splitPercent ?? 50) ? "a" : "b";
@@ -153,10 +178,20 @@ async function advanceRun(tenantId: string, journey: Journey, run: JourneyRun): 
   const evts = await events.list(tenantId, 5000);
   const openSet = new Set(evts.filter((e) => e.type === "message.open").map((e) => e.email));
   const clickSet = new Set(evts.filter((e) => e.type === "message.click").map((e) => e.email));
+  const redeemedSet = new Set(await vouchers.redeemedEmails(tenantId));
   const contact = await contactRepository.findByEmail(tenantId, run.email);
   const member: Contact = contact ?? ({ email: run.email, lifecycleStage: null } as Contact);
 
   const complete = async () => { run.status = "completed"; run.currentNodeId = null; await journeyRunRepository.save(run); };
+
+  // Goal check: a member who has met the journey goal exits early as converted.
+  if (journey.goal && goalMet(journey.goal, member, run, evts, redeemedSet)) {
+    run.status = "converted";
+    run.currentNodeId = null;
+    await journeyRunRepository.save(run);
+    logger.info("Journey goal met — exited converted", { journeyId: journey.id, email: run.email });
+    return;
+  }
 
   let currentId = run.currentNodeId;
   let hops = 0;
@@ -192,7 +227,7 @@ async function advanceRun(tenantId: string, journey: Journey, run: JourneyRun): 
     // Next node.
     let next: string | undefined;
     if (node.type === "condition") {
-      const branch = evalCondition(member, node.condition ?? null, openSet, clickSet) ? "yes" : "no";
+      const branch = evalCondition(member, node.condition ?? null, openSet, clickSet, redeemedSet) ? "yes" : "no";
       next = outEdges(node.id).find((e) => e.branch === branch)?.target;
     } else if (node.type === "ab_split") {
       const branch = hashPercent(run.email) < (node.splitPercent ?? 50) ? "a" : "b";

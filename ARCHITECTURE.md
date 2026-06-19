@@ -75,16 +75,20 @@ Chú thích trạng thái: ✅ v1 có · 🟡 một phần · ⬜ chưa có.
   `wakeAt`) và **resume đúng thời gian thật**, nên condition sau wait (đã mở?) đánh giá trên
   engagement thật. `update_contact`/`webhook` chạy **thật**. "Xem trước" = dry-run (đếm, không gửi);
   "Activate" = chạy thật qua worker.
+- **Có thêm:** **goal/exit-by-conversion** (journey có goal conversion/voucher_redeemed/lifecycle →
+  member đạt goal exit sớm thành `converted`); condition `voucher_redeemed`.
 - **Gap:** trigger event/property tức thời (hiện theo cadence worker 10s); versioning khi sửa
-  workflow đang chạy; goal/exit-by-conversion; holdout.
+  workflow đang chạy; holdout/control group; A/B winner.
 
 ### 4. DELIVER — Channel & message layer
-- **Có:** gửi email qua HubSpot transactional single-send (`email.service.ts`); template +
-  merge field. **Lưu ý:** "send" của campaign hiện **mô phỏng** (`campaign.service.ts › markSent`);
-  chỉ luồng onboarding mới thực gọi HubSpot.
-- **Gap:** trừu tượng **MessageChannel** riêng (tách khỏi `CrmChannel` vốn dành cho CRM sync);
-  **Zalo ZNS/OA** (bắt buộc VN), SMS, push; **voucher/offer injection** (đặc thù UrBox);
-  frequency capping, send-time optimization, throttling.
+- **Có:** `MessageChannel` riêng (`deliver/channel.ts`) cho email (HubSpot khi connected) / SMS /
+  **Zalo ZNS** (webhook khi cấu hình, fallback simulated); `delivery.service` = gate consent/
+  suppression + **frequency cap** + **voucher injection** + record sent event.
+- **Voucher lifecycle:** `vouchers` (issued/redeemed/expired) — send-có-voucher **phát** voucher;
+  **redeem** (`voucher.service`) → ghi `conversion` (vào attribution + goal journey); worker tự
+  **expire**. Trang **Vouchers** UI (list + redeem). Đây là moat UrBox.
+- **Gap:** provider dispatch thật (creds), send-time optimization/quiet-hours, `voucher_expiring`
+  làm trigger journey.
 
 ### 5. MEASURE — Analytics & attribution
 - **Có:** `sync_log` (audit CRM sync) + dashboard (KPI counts, contacts theo lifecycle,

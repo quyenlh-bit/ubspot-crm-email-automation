@@ -164,6 +164,8 @@ export interface Journey {
   trigger?: WorkflowTrigger | null;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
+  /** Optional goal — members who meet it exit the journey early as converted. */
+  goal?: WorkflowGoal | null;
   status: "draft" | "active" | "paused";
   lastRunAt?: Date | null;
   lastRunSummary?: JourneyRunSummary | null;
@@ -178,6 +180,7 @@ export interface JourneyInput {
   trigger?: WorkflowTrigger | null;
   nodes?: WorkflowNode[];
   edges?: WorkflowEdge[];
+  goal?: WorkflowGoal | null;
 }
 
 // ── Workflow v2 (graph) ─────────────────────────────────────────────────────
@@ -204,7 +207,7 @@ export type WorkflowNodeType =
   | "exit";
 
 export interface WorkflowCondition {
-  kind: "lifecycle_is" | "opened" | "clicked";
+  kind: "lifecycle_is" | "opened" | "clicked" | "voucher_redeemed";
   value?: string | null;
 }
 
@@ -239,7 +242,30 @@ export interface WorkflowEdge {
  * node-by-node; at a `wait` node it parks the run (`waiting` + `wakeAt`) and
  * resumes when due — so real time passes and post-send conditions are meaningful.
  */
-export type JourneyRunStatus = "active" | "waiting" | "completed";
+/** A journey goal: when a member meets it, they exit early as "converted". */
+export interface WorkflowGoal {
+  type: "conversion" | "voucher_redeemed" | "lifecycle_is";
+  value?: string | null; // lifecycle stage for lifecycle_is
+}
+
+export type JourneyRunStatus = "active" | "waiting" | "completed" | "converted";
+
+/** Lifecycle of an issued voucher/offer (UrBox's core loyalty primitive). */
+export type VoucherStatus = "issued" | "redeemed" | "expired";
+
+export interface Voucher {
+  id: string;
+  tenantId: string;
+  email: string;
+  code: string;
+  amount: number;
+  status: VoucherStatus;
+  campaignId?: string | null;
+  journeyId?: string | null;
+  issuedAt: Date;
+  expiresAt: Date | null;
+  redeemedAt?: Date | null;
+}
 
 export interface JourneyRun {
   id: string;

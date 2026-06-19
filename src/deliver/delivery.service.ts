@@ -2,7 +2,12 @@ import { getMessageChannel } from "./channel.js";
 import * as consent from "../core/compliance/consent.repository.js";
 import * as suppression from "../core/compliance/suppression.repository.js";
 import * as events from "../core/events/event.repository.js";
+import * as vouchers from "../core/vouchers/voucher.repository.js";
 import type { MessageChannelType } from "../core/domain.js";
+
+/** Default voucher face value (VND) + validity when issued via a send node. */
+const VOUCHER_AMOUNT = 200_000;
+const VOUCHER_VALID_DAYS = 30;
 
 /** Max messages per contact per rolling 24h window (frequency capping). */
 export const FREQUENCY_CAP_24H = 5;
@@ -57,6 +62,19 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     campaignId: input.campaignId ?? null,
     journeyId: input.journeyId ?? null,
   });
+
+  // Issue a voucher record when the message carries an offer code (lifecycle start).
+  if (input.voucherCode) {
+    await vouchers.issue({
+      tenantId,
+      email: to,
+      code: input.voucherCode,
+      amount: VOUCHER_AMOUNT,
+      campaignId: input.campaignId ?? null,
+      journeyId: input.journeyId ?? null,
+      expiresAt: new Date(Date.now() + VOUCHER_VALID_DAYS * 24 * 60 * 60 * 1000),
+    });
+  }
 
   return { to, status: "sent" };
 }

@@ -14,6 +14,7 @@ import {
   IconShield,
   IconSyncLog,
   IconTenants,
+  IconVoucher,
 } from "./icons";
 
 type NavItem = {
@@ -30,7 +31,8 @@ const MENU: NavItem[] = [
   { to: "/segments", label: "Segments", icon: IconSegments },
   { to: "/connections", label: "Connections", icon: IconConnections },
   { to: "/campaigns", label: "Campaigns", icon: IconCampaigns },
-  { to: "/workflows", label: "Workflows", icon: IconJourneys, badge: "NEW" },
+  { to: "/workflows", label: "Workflows", icon: IconJourneys },
+  { to: "/vouchers", label: "Vouchers", icon: IconVoucher, badge: "NEW" },
   { to: "/automation", label: "Automation", icon: IconAutomation },
 ];
 

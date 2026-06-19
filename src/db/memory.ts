@@ -23,6 +23,8 @@ import type {
   SegmentInput,
   SuppressionEntry,
   Tenant,
+  Voucher,
+  VoucherStatus,
 } from "../core/domain.js";
 import type { ContactRepository } from "../core/contacts/contact.repository.js";
 import type { SyncLogEntry, SyncLogRecord } from "../core/sync/sync-log.repository.js";
@@ -323,6 +325,7 @@ class InMemoryJourneyRepository {
       trigger: input.trigger ?? null,
       nodes: input.nodes ?? [],
       edges: input.edges ?? [],
+      goal: input.goal ?? null,
       status: "draft",
       lastRunAt: null,
       lastRunSummary: null,
@@ -341,6 +344,7 @@ class InMemoryJourneyRepository {
     j.trigger = input.trigger ?? null;
     j.nodes = input.nodes ?? [];
     j.edges = input.edges ?? [];
+    j.goal = input.goal ?? null;
     j.updatedAt = new Date();
     return j;
   }
@@ -441,7 +445,7 @@ export const memJourneyRuns = {
     if (r) { r.currentNodeId = run.currentNodeId; r.status = run.status; r.wakeAt = run.wakeAt; r.updatedAt = new Date(); }
   },
   async countByStatus(journeyId: string): Promise<Record<JourneyRunStatus, number>> {
-    const out: Record<JourneyRunStatus, number> = { active: 0, waiting: 0, completed: 0 };
+    const out: Record<JourneyRunStatus, number> = { active: 0, waiting: 0, completed: 0, converted: 0 };
     for (const r of journeyRunRows.filter((x) => x.journeyId === journeyId)) out[r.status] += 1;
     return out;
   },
@@ -459,6 +463,41 @@ export const memEnrollments = {
   },
   async count(journeyId: string): Promise<number> {
     return enrollmentRows.filter((r) => r.journeyId === journeyId).length;
+  },
+};
+
+const voucherRows: Voucher[] = [];
+export const memVouchers = {
+  async issue(v: Omit<Voucher, "id" | "issuedAt" | "status" | "redeemedAt">): Promise<Voucher> {
+    const voucher: Voucher = { ...v, id: randomUUID(), status: "issued", issuedAt: new Date(), redeemedAt: null };
+    voucherRows.push(voucher);
+    return voucher;
+  },
+  async list(tenantId: string): Promise<Voucher[]> {
+    return voucherRows.filter((r) => r.tenantId === tenantId).sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime());
+  },
+  async findById(tenantId: string, id: string): Promise<Voucher | null> {
+    return voucherRows.find((r) => r.tenantId === tenantId && r.id === id) ?? null;
+  },
+  async setStatus(tenantId: string, id: string, status: VoucherStatus): Promise<Voucher | null> {
+    const v = voucherRows.find((r) => r.tenantId === tenantId && r.id === id);
+    if (!v) return null;
+    v.status = status;
+    if (status === "redeemed") v.redeemedAt = new Date();
+    return v;
+  },
+  async redeemedEmails(tenantId: string): Promise<string[]> {
+    return voucherRows.filter((r) => r.tenantId === tenantId && r.status === "redeemed").map((r) => r.email);
+  },
+  async expireDue(tenantId: string, now: Date): Promise<number> {
+    let n = 0;
+    for (const v of voucherRows) {
+      if (v.tenantId === tenantId && v.status === "issued" && v.expiresAt && v.expiresAt <= now) {
+        v.status = "expired";
+        n += 1;
+      }
+    }
+    return n;
   },
 };
 

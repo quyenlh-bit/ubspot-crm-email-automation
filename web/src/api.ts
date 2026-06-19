@@ -17,6 +17,7 @@ import type {
   SuppressionEntry,
   SyncLogRecord,
   Tenant,
+  Voucher,
   WorkflowTemplate,
 } from "./types";
 
@@ -122,7 +123,12 @@ export const runJourney = (tenantId: string, journeyId: string) =>
   http<Journey>(`/tenants/${tenantId}/journeys/${journeyId}/run`, { method: "POST" });
 export const getWorkflowTemplates = () => http<WorkflowTemplate[]>(`/workflow-templates`);
 export const getJourneyRuns = (tenantId: string, journeyId: string) =>
-  http<{ active: number; waiting: number; completed: number }>(`/tenants/${tenantId}/journeys/${journeyId}/runs`);
+  http<{ active: number; waiting: number; completed: number; converted: number }>(`/tenants/${tenantId}/journeys/${journeyId}/runs`);
+
+// Vouchers (loyalty lifecycle)
+export const listVouchers = (tenantId: string) => http<Voucher[]>(`/tenants/${tenantId}/vouchers`);
+export const redeemVoucher = (tenantId: string, voucherId: string) =>
+  http<Voucher>(`/tenants/${tenantId}/vouchers/${voucherId}/redeem`, { method: "POST" });
 
 // Campaigns
 export const listCampaigns = (tenantId: string) =>
