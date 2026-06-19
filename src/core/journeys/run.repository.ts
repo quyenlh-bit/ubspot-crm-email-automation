@@ -68,7 +68,7 @@ class PostgresJourneyRunRepository implements JourneyRunRepository {
       `select status, count(*) as n from journey_runs where journey_id = $1 group by status`,
       [journeyId],
     );
-    const out: Record<JourneyRunStatus, number> = { active: 0, waiting: 0, completed: 0 };
+    const out: Record<JourneyRunStatus, number> = { active: 0, waiting: 0, completed: 0, converted: 0 };
     for (const r of rows) out[r.status] = Number(r.n);
     return out;
   }

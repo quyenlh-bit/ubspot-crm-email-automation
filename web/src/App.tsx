@@ -7,6 +7,7 @@ import Segments from "./pages/Segments";
 import Connections from "./pages/Connections";
 import Campaigns from "./pages/Campaigns";
 import Workflows from "./pages/Workflows";
+import Vouchers from "./pages/Vouchers";
 import Automation from "./pages/Automation";
 import Compliance from "./pages/Compliance";
 import SyncLog from "./pages/SyncLog";
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/connections" element={<Connections />} />
           <Route path="/campaigns" element={<Campaigns />} />
           <Route path="/workflows" element={<Workflows />} />
+          <Route path="/vouchers" element={<Vouchers />} />
           <Route path="/compliance" element={<Compliance />} />
           <Route path="/automation" element={<Automation />} />
           <Route path="/sync-log" element={<SyncLog />} />

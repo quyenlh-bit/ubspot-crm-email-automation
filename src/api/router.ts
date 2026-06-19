@@ -18,6 +18,7 @@ import { segmentRepository } from "../core/segments/segment.repository.js";
 import { createJourney, listJourneys, runJourney, updateJourney, setJourneyStatus } from "../services/journey.service.js";
 import { WORKFLOW_TEMPLATES } from "../core/journeys/workflow-templates.js";
 import { journeyRunRepository } from "../core/journeys/run.repository.js";
+import { listVouchers, redeemVoucher } from "../services/voucher.service.js";
 import type { JourneyInput } from "../core/domain.js";
 import { EMAIL_TEMPLATES } from "../core/campaigns/templates.js";
 import * as consentRepo from "../core/compliance/consent.repository.js";
@@ -297,6 +298,21 @@ apiRouter.post(
   }),
 );
 
+// ── Vouchers (loyalty lifecycle) ────────────────────────────────────────────
+
+apiRouter.get(
+  "/tenants/:tenantId/vouchers",
+  wrap(async (req, res) => res.json(await listVouchers(String(req.params.tenantId)))),
+);
+
+apiRouter.post(
+  "/tenants/:tenantId/vouchers/:voucherId/redeem",
+  wrap(async (req, res) => {
+    const voucher = await redeemVoucher(String(req.params.tenantId), String(req.params.voucherId));
+    res.json(voucher);
+  }),
+);
+
 // ── Measure: events & analytics (MEASURE) ───────────────────────────────────
 
 const RecordEvent = z.object({
@@ -377,6 +393,7 @@ const WorkflowGraph = z.object({
   nodes: z.array(z.record(z.unknown())).optional(),
   edges: z.array(z.record(z.unknown())).optional(),
   steps: z.array(z.record(z.unknown())).optional(),
+  goal: z.record(z.unknown()).nullable().optional(),
 });
 
 const toInput = (d: z.infer<typeof WorkflowGraph>): JourneyInput => ({
@@ -386,6 +403,7 @@ const toInput = (d: z.infer<typeof WorkflowGraph>): JourneyInput => ({
   nodes: (d.nodes ?? []) as unknown as JourneyInput["nodes"],
   edges: (d.edges ?? []) as unknown as JourneyInput["edges"],
   steps: (d.steps ?? []) as unknown as JourneyInput["steps"],
+  goal: (d.goal ?? null) as unknown as JourneyInput["goal"],
 });
 
 apiRouter.get(

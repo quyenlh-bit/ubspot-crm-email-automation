@@ -3,6 +3,7 @@ import { campaignRepository } from "../core/campaigns/campaign.repository.js";
 import { journeyRepository } from "../core/journeys/journey.repository.js";
 import { sendCampaign } from "../services/campaign.service.js";
 import { advanceDueRuns, enrollNewMembers } from "../services/journey.service.js";
+import * as vouchers from "../core/vouchers/voucher.repository.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -52,6 +53,13 @@ async function tick(): Promise<void> {
         await advanceDueRuns(t.id);
       } catch (err) {
         logger.error("Journey advance failed", { tenantId: t.id, err: String(err) });
+      }
+
+      // Expire vouchers past their validity.
+      try {
+        await vouchers.expireDue(t.id, new Date());
+      } catch (err) {
+        logger.error("Voucher expiry failed", { tenantId: t.id, err: String(err) });
       }
     }
   } finally {

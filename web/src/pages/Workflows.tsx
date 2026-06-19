@@ -101,10 +101,11 @@ export default function Workflows() {
   const [name, setName] = useState("");
   const [segmentId, setSegmentId] = useState("");
   const [status, setStatus] = useState<Journey["status"]>("draft");
+  const [goalType, setGoalType] = useState<"" | "conversion" | "voucher_redeemed">("");
   const [selNode, setSelNode] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [runs, setRuns] = useState<{ active: number; waiting: number; completed: number } | null>(null);
+  const [runs, setRuns] = useState<{ active: number; waiting: number; completed: number; converted: number } | null>(null);
 
   const refreshRuns = useCallback(async (id: string | null) => {
     if (!id) { setRuns(null); return; }
@@ -114,7 +115,7 @@ export default function Workflows() {
   const nodeTypes = useMemo(() => ({ wf: CanvasNode, trigger: TriggerNode }), []);
 
   const loadGraph = useCallback(
-    (nodes: WorkflowNode[], edges: Journey["edges"], opts: { name: string; segmentId: string; status: Journey["status"] }) => {
+    (nodes: WorkflowNode[], edges: Journey["edges"], opts: { name: string; segmentId: string; status: Journey["status"]; goal?: "" | "conversion" | "voucher_redeemed" }) => {
       setRfNodes([
         { id: "trigger", type: "trigger", position: TRIGGER_POS, data: { label: opts.segmentId ? "segment entry" : "segment entry" } },
         ...nodes.map((n) => ({ id: n.id, type: "wf", position: n.position, data: { ...n } as WorkflowNode })),
@@ -132,6 +133,7 @@ export default function Workflows() {
       setName(opts.name);
       setSegmentId(opts.segmentId);
       setStatus(opts.status);
+      setGoalType(opts.goal ?? "");
       setSelNode(null);
     },
     [setRfNodes, setRfEdges],
@@ -146,7 +148,7 @@ export default function Workflows() {
 
   function openJourney(j: Journey) {
     setCurrentId(j.id);
-    loadGraph(j.nodes, j.edges, { name: j.name, segmentId: j.trigger?.segmentId ?? j.segmentId ?? "", status: j.status });
+    loadGraph(j.nodes, j.edges, { name: j.name, segmentId: j.trigger?.segmentId ?? j.segmentId ?? "", status: j.status, goal: (j.goal?.type === "conversion" || j.goal?.type === "voucher_redeemed") ? j.goal.type : "" });
     void refreshRuns(j.id);
   }
 
@@ -190,7 +192,7 @@ export default function Workflows() {
     setError(null); setMsg(null);
     try {
       const { nodes, edges } = serialize();
-      const input = { name, segmentId: segmentId || null, trigger: { type: "segment_entry" as const, segmentId: segmentId || null }, nodes, edges };
+      const input = { name, segmentId: segmentId || null, trigger: { type: "segment_entry" as const, segmentId: segmentId || null }, nodes, edges, goal: goalType ? { type: goalType } : null };
       const saved = currentId ? await updateJourney(selectedId!, currentId, input) : await createJourney(selectedId!, input);
       setCurrentId(saved.id);
       setMsg("Đã lưu workflow.");
@@ -239,10 +241,15 @@ export default function Workflows() {
           <option value="">Trigger: tất cả contact</option>
           {(segments.data ?? []).map((s) => <option key={s.id} value={s.id}>Vào segment: {s.name} ({s.memberCount ?? "?"})</option>)}
         </select>
+        <select value={goalType} onChange={(e) => setGoalType(e.target.value as typeof goalType)} title="Goal: member đạt sẽ exit 'converted'">
+          <option value="">Goal: không</option>
+          <option value="conversion">Goal: có conversion</option>
+          <option value="voucher_redeemed">Goal: redeem voucher</option>
+        </select>
         <StatusBadge status={status} />
         {runs && (
-          <span className="muted small" title="runs: active / waiting / completed">
-            ▶ {runs.active} · ⏸ {runs.waiting} · ✓ {runs.completed}
+          <span className="muted small" title="runs: active / waiting / completed / converted">
+            ▶ {runs.active} · ⏸ {runs.waiting} · ✓ {runs.completed} · ★ {runs.converted}
           </span>
         )}
         <span style={{ flex: 1 }} />
@@ -295,9 +302,10 @@ export default function Workflows() {
               {selData.type === "condition" && (
                 <>
                   <label className="wf-field">Điều kiện
-                    <select value={selData.condition?.kind ?? "opened"} onChange={(e) => patchNode({ condition: { kind: e.target.value as "lifecycle_is" | "opened" | "clicked", value: selData.condition?.value } })}>
+                    <select value={selData.condition?.kind ?? "opened"} onChange={(e) => patchNode({ condition: { kind: e.target.value as "lifecycle_is" | "opened" | "clicked" | "voucher_redeemed", value: selData.condition?.value } })}>
                       <option value="opened">đã mở email</option>
                       <option value="clicked">đã click</option>
+                      <option value="voucher_redeemed">đã redeem voucher</option>
                       <option value="lifecycle_is">lifecycle =</option>
                     </select>
                   </label>

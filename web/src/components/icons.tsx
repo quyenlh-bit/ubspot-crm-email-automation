@@ -111,6 +111,14 @@ export const IconSegments = ({ size = 18 }: IconProps) =>
     </>
   ));
 
+export const IconVoucher = ({ size = 18 }: IconProps) =>
+  wrap(size, (
+    <>
+      <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z" />
+      <path d="M14 6v12" strokeDasharray="2 2" />
+    </>
+  ));
+
 export const IconShield = ({ size = 18 }: IconProps) =>
   wrap(size, (
     <>

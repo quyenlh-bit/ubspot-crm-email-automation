@@ -143,8 +143,26 @@ export type WorkflowNodeType =
   | "webhook"
   | "exit";
 export interface WorkflowCondition {
-  kind: "lifecycle_is" | "opened" | "clicked";
+  kind: "lifecycle_is" | "opened" | "clicked" | "voucher_redeemed";
   value?: string | null;
+}
+export interface WorkflowGoal {
+  type: "conversion" | "voucher_redeemed" | "lifecycle_is";
+  value?: string | null;
+}
+export type VoucherStatus = "issued" | "redeemed" | "expired";
+export interface Voucher {
+  id: string;
+  tenantId: string;
+  email: string;
+  code: string;
+  amount: number;
+  status: VoucherStatus;
+  campaignId?: string | null;
+  journeyId?: string | null;
+  issuedAt: string;
+  expiresAt?: string | null;
+  redeemedAt?: string | null;
 }
 export interface WorkflowNode {
   id: string;
@@ -177,6 +195,7 @@ export interface Journey {
   trigger?: WorkflowTrigger | null;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
+  goal?: WorkflowGoal | null;
   status: "draft" | "active" | "paused";
   lastRunAt?: string | null;
   lastRunSummary?: JourneyRunSummary | null;
@@ -190,6 +209,7 @@ export interface JourneyInput {
   trigger?: WorkflowTrigger | null;
   nodes?: WorkflowNode[];
   edges?: WorkflowEdge[];
+  goal?: WorkflowGoal | null;
 }
 
 export interface WorkflowTemplate {

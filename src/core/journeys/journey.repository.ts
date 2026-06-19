@@ -20,6 +20,7 @@ interface JourneyRow {
   trigger: Journey["trigger"];
   nodes: Journey["nodes"];
   edges: Journey["edges"];
+  goal: Journey["goal"];
   status: Journey["status"];
   last_run_at: Date | null;
   last_run_summary: JourneyRunSummary | null;
@@ -36,6 +37,7 @@ const toDomain = (r: JourneyRow): Journey => ({
   trigger: r.trigger ?? null,
   nodes: r.nodes ?? [],
   edges: r.edges ?? [],
+  goal: r.goal ?? null,
   status: r.status,
   lastRunAt: r.last_run_at,
   lastRunSummary: r.last_run_summary,
@@ -44,13 +46,13 @@ const toDomain = (r: JourneyRow): Journey => ({
 });
 
 const COLS =
-  "id, tenant_id, name, segment_id, steps, trigger, nodes, edges, status, last_run_at, last_run_summary, created_at, updated_at";
+  "id, tenant_id, name, segment_id, steps, trigger, nodes, edges, goal, status, last_run_at, last_run_summary, created_at, updated_at";
 
 class PostgresJourneyRepository implements JourneyRepository {
   async create(tenantId: string, input: JourneyInput): Promise<Journey> {
     const rows = await query<JourneyRow>(
-      `insert into journeys (tenant_id, name, segment_id, steps, trigger, nodes, edges)
-       values ($1, $2, $3, $4, $5, $6, $7)
+      `insert into journeys (tenant_id, name, segment_id, steps, trigger, nodes, edges, goal)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        returning ${COLS}`,
       [
         tenantId,
@@ -60,6 +62,7 @@ class PostgresJourneyRepository implements JourneyRepository {
         input.trigger ? JSON.stringify(input.trigger) : null,
         JSON.stringify(input.nodes ?? []),
         JSON.stringify(input.edges ?? []),
+        input.goal ? JSON.stringify(input.goal) : null,
       ],
     );
     return toDomain(rows[0]);
@@ -68,7 +71,7 @@ class PostgresJourneyRepository implements JourneyRepository {
   async update(tenantId: string, id: string, input: JourneyInput): Promise<Journey> {
     const rows = await query<JourneyRow>(
       `update journeys set
-         name = $3, segment_id = $4, steps = $5, trigger = $6, nodes = $7, edges = $8, updated_at = now()
+         name = $3, segment_id = $4, steps = $5, trigger = $6, nodes = $7, edges = $8, goal = $9, updated_at = now()
        where tenant_id = $1 and id = $2
        returning ${COLS}`,
       [
@@ -80,6 +83,7 @@ class PostgresJourneyRepository implements JourneyRepository {
         input.trigger ? JSON.stringify(input.trigger) : null,
         JSON.stringify(input.nodes ?? []),
         JSON.stringify(input.edges ?? []),
+        input.goal ? JSON.stringify(input.goal) : null,
       ],
     );
     if (!rows[0]) throw new Error(`Journey ${id} not found for tenant ${tenantId}`);
